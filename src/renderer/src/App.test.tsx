@@ -13,16 +13,17 @@ describe('App', () => {
     expect(screen.getByText('Application de bureau locale')).toBeDefined()
   })
 
-  it('affiche le statut React et Electron fonctionnel', () => {
+  it('affiche les labels de statut Phase 1', () => {
     render(<App />)
     expect(screen.getByText('React')).toBeDefined()
-    const fonctionnelElements = screen.getAllByText('fonctionnel')
-    expect(fonctionnelElements.length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText('Electron')).toBeDefined()
+    expect(screen.getByText('IPC Ping')).toBeDefined()
+    const prefElements = screen.getAllByText('Preferences')
+    expect(prefElements.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('affiche le statut Electron', () => {
+  it('affiche la section Preferences', () => {
     render(<App />)
-    const electronElements = screen.getAllByText('fonctionnel')
-    expect(electronElements.length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText('Theme')).toBeDefined()
   })
 })

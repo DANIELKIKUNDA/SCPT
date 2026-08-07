@@ -214,8 +214,19 @@ Les versions exactes sont verrouillées dans `pnpm-lock.yaml`. Elles doivent êt
 - `file-type` — détection réelle du type de fichier ;
 - `mime-types` — gestion MIME ;
 - `proper-lockfile` — verrouillage des fichiers de projet ;
-- `conf` — préférences locales simples ;
 - `keytar` — secrets dans le coffre du système d’exploitation.
+
+### Stockage des préférences (Phase 1)
+
+**Décision :** Un store JSON natif a été retenu à la place de `conf` (incompatible ESM avec le main process Electron CommonJS).
+
+**Caractéristiques :**
+- Fichier : `app.getPath('userData')/scpt-preferences.json`
+- Écriture atomique via fichier temporaire + `renameSync`
+- Validation Zod à chaque lecture/écriture
+- Récupération automatique après JSON corrompu (valeurs par défaut)
+- Valeurs par défaut : `{ theme: 'system', language: 'fr', reduceMotion: false }`
+- Aucune dépendance externe
 
 ### Médias
 

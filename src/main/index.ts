@@ -1,5 +1,8 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { join } from 'path'
+import { logger } from './logging/logger'
+import { configureCSP } from './security/csp'
+import { registerIpcHandlers } from './ipc/handlers'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -9,16 +12,19 @@ function createWindow(): void {
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true
     }
   })
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+    logger.info('Main window shown')
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    logger.warn({ url: details.url }, 'Blocked external window.open')
     return { action: 'deny' }
   })
 
@@ -28,9 +34,16 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  logger.info({ isDev: !app.isPackaged }, 'Window created')
 }
 
 app.whenReady().then(() => {
+  logger.info('Electron app ready')
+
+  configureCSP()
+  registerIpcHandlers()
+
   createWindow()
 
   app.on('activate', function () {
@@ -39,7 +52,21 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  logger.info('All windows closed')
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('before-quit', () => {
+  logger.info('App before-quit')
+})
+
+process.on('uncaughtException', (error) => {
+  logger.fatal({ err: error }, 'Uncaught exception')
+  app.quit()
+})
+
+process.on('unhandledRejection', (reason) => {
+  logger.fatal({ err: reason }, 'Unhandled rejection')
 })

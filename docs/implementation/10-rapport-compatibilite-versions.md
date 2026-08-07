@@ -51,6 +51,25 @@ Ce rapport est établi avant toute modification fonctionnelle du dépôt, sur la
 - `@vitest/coverage-v8`
 - `jsdom`
 
+## Phase 1 — Dépendances ajoutées
+
+- `zod` (4.4.3) — validation des entrées IPC et préférences
+- `pino` (10.3.1) — journalisation structurée
+- `pino-pretty` (13.1.3, dev) — logs lisibles en développement
+
+### Store de préférences
+
+**Décision :** `conf` a été abandonné car incompatible ESM avec le main process Electron (CommonJS). `electron-store` v11 a le même problème. Un store JSON natif a été implémenté à la place.
+
+**Caractéristiques du store JSON natif :**
+- Fichier : `app.getPath('userData')/scpt-preferences.json`
+- Écriture atomique : écriture dans `scpt-preferences.json.tmp`, puis `renameSync` vers le fichier cible
+- Nettoyage automatique d'un `.tmp` abandonné
+- JSON corrompu → warning log + réinitialisation aux valeurs par défaut
+- Validation Zod à chaque lecture/écriture
+- Valeurs par défaut : `{ theme: 'system', language: 'fr', reduceMotion: false }`
+- Aucune dépendance externe, compatible CJS sans friction
+
 ## Plan précis de la phase 0
 
 1. Normaliser la base du dépôt sans anticiper les phases suivantes.
