@@ -19,6 +19,7 @@
     "src/main/**/*.ts",
     "src/preload/**/*.ts",
     "src/shared/**/*.ts",
+    "src/contexts/**/*.ts",
     "electron.vite.config.ts",
     "tsconfig.node.json",
     "tsconfig.web.json"

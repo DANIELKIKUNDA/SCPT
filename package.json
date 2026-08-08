@@ -22,9 +22,15 @@
     "env:check": "node scripts/env-check.js"
   },
   "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "date-fns": "^4.4.0",
+    "drizzle-orm": "^0.45.2",
+    "fs-extra": "^11.4.0",
     "pino": "^10.3.1",
+    "proper-lockfile": "^4.1.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "ulid": "^3.0.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -33,11 +39,15 @@
     "@eslint/js": "^9.14.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/fs-extra": "^11.0.4",
     "@types/node": "^22.9.0",
+    "@types/proper-lockfile": "^4.1.4",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "^2.1.8",
+    "drizzle-kit": "^0.31.10",
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
@@ -54,7 +64,8 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "electron",
-      "esbuild"
+      "esbuild",
+      "better-sqlite3"
     ]
   }
 }

@@ -9,7 +9,23 @@ import {
   PartialPreferencesSchema
 } from '../../shared/validation/preferences-schema'
 
+import { InMemoryProjetAudiovisuelRepository } from '../../contexts/projects/infrastructure/persistence/in-memory-project-repository'
+import { CreateProjectUseCase } from '../../contexts/projects/application/use-cases/create-project.use-case'
+import { OpenProjectUseCase } from '../../contexts/projects/application/use-cases/open-project.use-case'
+import { ListRecentUseCase } from '../../contexts/projects/application/use-cases/list-recent.use-case'
+import { ArchiveProjectUseCase } from '../../contexts/projects/application/use-cases/archive-project.use-case'
+import { RestoreProjectUseCase } from '../../contexts/projects/application/use-cases/restore-project.use-case'
+
+// In-memory repository for now — will be swapped to Drizzle/SQLite when native build is available
+const projectRepo = new InMemoryProjetAudiovisuelRepository()
+const createProject = new CreateProjectUseCase(projectRepo)
+const openProject = new OpenProjectUseCase(projectRepo)
+const listRecent = new ListRecentUseCase(projectRepo)
+const archiveProject = new ArchiveProjectUseCase(projectRepo)
+const restoreProject = new RestoreProjectUseCase(projectRepo)
+
 export function registerIpcHandlers(): void {
+  // Phase 1 handlers
   ipcMain.handle(IPC_CHANNELS.SYSTEM_PING, () => {
     logger.debug('system:ping received')
     try {
@@ -68,5 +84,108 @@ export function registerIpcHandlers(): void {
     }
   })
 
-  logger.info('IPC handlers registered')
+  // Phase 2 handlers
+  ipcMain.handle(IPC_CHANNELS.PROJECTS_CREATE, async (_event, input: unknown) => {
+    logger.info('projects:create received')
+    try {
+      const projet = await createProject.execute(input)
+      return ipcSuccess({
+        id: projet.id.value,
+        titre: projet.titre,
+        type: projet.type,
+        statut: projet.statut,
+        createdAt: projet.createdAt.toISOString()
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      logger.error({ err, input }, 'projects:create failed')
+      return ipcFailure(ErrorCodes.VALIDATION_ERROR, message)
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.PROJECTS_OPEN, async (_event, projectId: unknown) => {
+    logger.info({ projectId }, 'projects:open received')
+    try {
+      if (typeof projectId !== 'string') {
+        return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid project ID')
+      }
+      const projet = await openProject.execute(projectId)
+      return ipcSuccess({
+        id: projet.id.value,
+        titre: projet.titre,
+        type: projet.type,
+        objectif: projet.objectif,
+        publicCible: projet.publicCible,
+        langueSource: projet.langueSource,
+        statut: projet.statut,
+        version: projet.version,
+        createdAt: projet.createdAt.toISOString(),
+        updatedAt: projet.updatedAt.toISOString(),
+        isArchived: projet.isArchived
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      logger.error({ err, projectId }, 'projects:open failed')
+      return ipcFailure(ErrorCodes.IPC_ERROR, message)
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.PROJECTS_LIST_RECENT, async () => {
+    logger.info('projects:list-recent received')
+    try {
+      const projects = await listRecent.execute(10)
+      return ipcSuccess(
+        projects.map((p) => ({
+          id: p.id.value,
+          titre: p.titre,
+          type: p.type,
+          statut: p.statut,
+          updatedAt: p.updatedAt.toISOString(),
+          isArchived: p.isArchived
+        }))
+      )
+    } catch (err) {
+      logger.error({ err }, 'projects:list-recent failed')
+      return ipcFailure(ErrorCodes.IPC_ERROR, 'Failed to list projects')
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.PROJECTS_ARCHIVE, async (_event, projectId: unknown) => {
+    logger.info({ projectId }, 'projects:archive received')
+    try {
+      if (typeof projectId !== 'string') {
+        return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid project ID')
+      }
+      const projet = await archiveProject.execute(projectId)
+      return ipcSuccess({
+        id: projet.id.value,
+        statut: projet.statut,
+        archivedAt: projet.archivedAt?.toISOString() ?? null
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      logger.error({ err, projectId }, 'projects:archive failed')
+      return ipcFailure(ErrorCodes.IPC_ERROR, message)
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.PROJECTS_RESTORE, async (_event, projectId: unknown) => {
+    logger.info({ projectId }, 'projects:restore received')
+    try {
+      if (typeof projectId !== 'string') {
+        return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid project ID')
+      }
+      const projet = await restoreProject.execute(projectId)
+      return ipcSuccess({
+        id: projet.id.value,
+        statut: projet.statut
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      logger.error({ err, projectId }, 'projects:restore failed')
+      return ipcFailure(ErrorCodes.IPC_ERROR, message)
+    }
+  })
+
+  logger.info('IPC handlers registered (Phase 1 + Phase 2)')
 }
