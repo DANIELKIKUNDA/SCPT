@@ -94,7 +94,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((s) => {
       const prev = s.undoStack.pop()
       if (!prev) return {}
-      return { scenes: prev, isDirty: false }
+      return { scenes: prev, isDirty: true }
     }),
 
   setDirty: (dirty) => set({ isDirty: dirty }),
