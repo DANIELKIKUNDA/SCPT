@@ -1,0 +1,178 @@
+import Database from 'better-sqlite3'
+import { Scene } from '../../domain/aggregates/scene'
+import { SceneId } from '../../domain/value-objects/scene-id'
+import { ProjetAudiovisuelId } from '../../domain/value-objects/projet-audiovisuel-id'
+import type { SequenceSceneRepository } from '../../domain/repositories/sequence-scene.repository'
+import type { SceneType } from '../../domain/value-objects/scene-type'
+
+interface SceneRow {
+  id: string
+  projet_id: string
+  ordre: number
+  type: string
+  titre: string | null
+  narration_texte: string | null
+  texte_affiche: string | null
+  duree_ms: number
+  composition_json: string
+  transition_json: string
+}
+
+function sceneToRow(scene: Scene): SceneRow {
+  const json = scene.toJSON()
+  return {
+    id: json.id.value,
+    projet_id: json.projetId.value,
+    ordre: json.ordre,
+    type: json.type,
+    titre: json.titre,
+    narration_texte: json.narrationTexte,
+    texte_affiche: json.texteAffiche,
+    duree_ms: json.dureeMs,
+    composition_json: JSON.stringify(json.composition),
+    transition_json: JSON.stringify(json.transition)
+  }
+}
+
+function rowToScene(row: SceneRow): Scene {
+  return Scene.fromPersistence({
+    id: SceneId.from(row.id),
+    projetId: ProjetAudiovisuelId.from(row.projet_id),
+    ordre: row.ordre,
+    type: row.type as SceneType,
+    titre: row.titre,
+    narrationTexte: row.narration_texte,
+    texteAffiche: row.texte_affiche,
+    dureeMs: row.duree_ms,
+    composition: JSON.parse(row.composition_json),
+    transition: JSON.parse(row.transition_json)
+  })
+}
+
+/**
+ * SQLite-backed SequenceSceneRepository.
+ * Each project has its own project.sqlite; this adapter works on a single db.
+ */
+export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepository {
+  const db = new Database(dbPath)
+  db.pragma('journal_mode = WAL')
+
+  // Migration: ensure scenes table exists
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS scenes (
+      id TEXT PRIMARY KEY NOT NULL,
+      projet_id TEXT NOT NULL,
+      ordre INTEGER NOT NULL,
+      type TEXT NOT NULL CHECK(type IN ('texte','formule','image','code')),
+      titre TEXT,
+      narration_texte TEXT,
+      texte_affiche TEXT,
+      duree_ms INTEGER NOT NULL DEFAULT 5000,
+      composition_json TEXT NOT NULL DEFAULT '{}',
+      transition_json TEXT NOT NULL DEFAULT '{}'
+    )
+  `)
+
+  // Ensure unique order per project (ignoring existing duplicates from incomplete migration)
+  try {
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_scenes_projet_ordre ON scenes(projet_id, ordre)')
+  } catch { /* index may already exist */ }
+
+  const insertStmt = db.prepare(`
+    INSERT OR REPLACE INTO scenes (id, projet_id, ordre, type, titre, narration_texte, texte_affiche, duree_ms, composition_json, transition_json)
+    VALUES (@id, @projet_id, @ordre, @type, @titre, @narration_texte, @texte_affiche, @duree_ms, @composition_json, @transition_json)
+  `)
+
+  const findByProjetStmt = db.prepare('SELECT * FROM scenes WHERE projet_id = ? ORDER BY ordre ASC')
+  const findByIdStmt = db.prepare('SELECT * FROM scenes WHERE id = ?')
+  const maxOrdreStmt = db.prepare('SELECT COALESCE(MAX(ordre), 0) as max_ordre FROM scenes WHERE projet_id = ?')
+  const deleteStmt = db.prepare('DELETE FROM scenes WHERE id = ?')
+  const updateOrdreStmt = db.prepare('UPDATE scenes SET ordre = ? WHERE id = ?')
+  const compactOrdreStmt = db.prepare(`
+    UPDATE scenes SET ordre = (
+      SELECT COUNT(*) FROM scenes AS s2 WHERE s2.projet_id = scenes.projet_id AND s2.ordre <= scenes.ordre
+    ) WHERE projet_id = ?
+  `)
+
+  return {
+    async loadSequence(projetId: ProjetAudiovisuelId): Promise<Scene[]> {
+      const rows = findByProjetStmt.all(projetId.value) as SceneRow[]
+      return rows.map(rowToScene)
+    },
+
+    async save(scene: Scene): Promise<void> {
+      insertStmt.run(sceneToRow(scene))
+    },
+
+    async findById(id: SceneId): Promise<Scene | null> {
+      const row = findByIdStmt.get(id.value) as SceneRow | undefined
+      if (!row) return null
+      return rowToScene(row)
+    },
+
+    async duplicate(id: SceneId): Promise<Scene> {
+      const original = findByIdStmt.get(id.value) as SceneRow | undefined
+      if (!original) throw new Error(`Scene not found: ${id.value}`)
+
+      const nextOrdre = (maxOrdreStmt.get(original.projet_id) as { max_ordre: number }).max_ordre + 1
+
+      const duplicate = Scene.create({
+        id: SceneId.generate(),
+        projetId: ProjetAudiovisuelId.from(original.projet_id),
+        ordre: nextOrdre,
+        type: original.type as SceneType,
+        titre: original.titre ? `${original.titre} (copie)` : null,
+        narrationTexte: original.narration_texte,
+        texteAffiche: original.texte_affiche,
+        dureeMs: original.duree_ms,
+        composition: JSON.parse(original.composition_json),
+        transition: JSON.parse(original.transition_json)
+      })
+
+      insertStmt.run(sceneToRow(duplicate))
+      return duplicate
+    },
+
+    async delete(id: SceneId): Promise<void> {
+      const scene = findByIdStmt.get(id.value) as SceneRow | undefined
+      if (!scene) throw new Error(`Scene not found: ${id.value}`)
+
+      const deleteInTx = db.transaction(() => {
+        deleteStmt.run(id.value)
+        // Compact remaining orders
+        compactOrdreStmt.run(scene.projet_id)
+      })
+      deleteInTx()
+    },
+
+    async reorder(projectId: ProjetAudiovisuelId, orderedIds: SceneId[]): Promise<void> {
+      const reorderTx = db.transaction(() => {
+        const currentScenes = findByProjetStmt.all(projectId.value) as SceneRow[]
+        const currentIds = new Set(currentScenes.map(s => s.id))
+        const newIds = new Set(orderedIds.map(id => id.value))
+
+        // Validate: same set of IDs
+        if (currentIds.size !== newIds.size || ![...currentIds].every(id => newIds.has(id))) {
+          throw new Error('Reorder must include exactly the same scene IDs')
+        }
+
+        // Phase 1: shift all ordres to a temporary range (negative) to avoid unique constraint conflicts
+        const offset = currentScenes.length + 1
+        currentScenes.forEach((scene, i) => {
+          updateOrdreStmt.run(-(i + 1) - offset, scene.id)
+        })
+
+        // Phase 2: assign final orders
+        orderedIds.forEach((sceneId, index) => {
+          updateOrdreStmt.run(index + 1, sceneId.value)
+        })
+      })
+      reorderTx()
+    },
+
+    async nextOrdre(projetId: ProjetAudiovisuelId): Promise<number> {
+      const row = maxOrdreStmt.get(projetId.value) as { max_ordre: number }
+      return row.max_ordre + 1
+    }
+  }
+}

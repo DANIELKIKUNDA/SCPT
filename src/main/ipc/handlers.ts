@@ -17,6 +17,15 @@ import { ArchiveProjectUseCase } from '../../contexts/projects/application/use-c
 import { RestoreProjectUseCase } from '../../contexts/projects/application/use-cases/restore-project.use-case'
 import { getLockManager, ProjectLockedError } from '../persistence/lock-manager'
 import { join } from 'path'
+import { ProjetAudiovisuelId } from '../../contexts/projects/domain/value-objects/projet-audiovisuel-id'
+import { getProjectManifestService } from '../persistence/project-manifest'
+import { createDrizzleSceneRepository } from '../../contexts/projects/infrastructure/persistence/drizzle-scene-repository'
+import { LoadSequenceUseCase } from '../../contexts/projects/application/use-cases/scene/load-sequence.use-case'
+import { CreateSceneUseCase } from '../../contexts/projects/application/use-cases/scene/create-scene.use-case'
+import { UpdateSceneUseCase } from '../../contexts/projects/application/use-cases/scene/update-scene.use-case'
+import { DeleteSceneUseCase } from '../../contexts/projects/application/use-cases/scene/delete-scene.use-case'
+import { DuplicateSceneUseCase } from '../../contexts/projects/application/use-cases/scene/duplicate-scene.use-case'
+import { ReorderScenesUseCase } from '../../contexts/projects/application/use-cases/scene/reorder-scenes.use-case'
 
 let repo: ReturnType<typeof createSqliteProjectRepository> | null = null
 
@@ -233,5 +242,101 @@ export function registerIpcHandlers(): void {
     }
   })
 
-  logger.info('IPC handlers registered (Phase 1 + Phase 2 + Lock)')
+  // Phase 3: Scene handlers
+  const sceneRepos = new Map<string, ReturnType<typeof createDrizzleSceneRepository>>()
+
+  function getSceneRepo(projectId: string): ReturnType<typeof createDrizzleSceneRepository> {
+    let sr = sceneRepos.get(projectId)
+    if (!sr) {
+      const dbPath = getProjectManifestService().getDatabasePath(projectId)
+      sr = createDrizzleSceneRepository(dbPath)
+      sceneRepos.set(projectId, sr)
+    }
+    return sr
+  }
+
+  ipcMain.handle(IPC_CHANNELS.SCENES_LOAD_SEQUENCE, async (_event, projectId: unknown) => {
+    try {
+      if (typeof projectId !== 'string') return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid project ID')
+      const scenes = await new LoadSequenceUseCase(getSceneRepo(projectId)).execute(
+        ProjetAudiovisuelId.from(projectId)
+      )
+      return ipcSuccess(scenes.map(s => ({
+        id: s.id.value,
+        projetId: s.projetId.value,
+        ordre: s.ordre,
+        type: s.type,
+        titre: s.titre,
+        narrationTexte: s.narrationTexte,
+        texteAffiche: s.texteAffiche,
+        dureeMs: s.dureeMs
+      })))
+    } catch (err) {
+      return ipcFailure(ErrorCodes.IPC_ERROR, err instanceof Error ? err.message : 'Failed')
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.SCENES_CREATE, async (_event, input: unknown) => {
+    try {
+      const data = input as Record<string, unknown>
+      if (!data || typeof data.projetId !== 'string') return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid input')
+      const scene = await new CreateSceneUseCase(getSceneRepo(data.projetId)).execute(data as never)
+      return ipcSuccess({ id: scene.id.value, ordre: scene.ordre, type: scene.type, titre: scene.titre, dureeMs: scene.dureeMs })
+    } catch (err) {
+      return ipcFailure(ErrorCodes.VALIDATION_ERROR, err instanceof Error ? err.message : 'Failed')
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.SCENES_UPDATE, async (_event, input: unknown) => {
+    try {
+      const data = input as Record<string, unknown>
+      if (!data || typeof data.sceneId !== 'string' || typeof data.projetId !== 'string')
+        return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid input')
+      const scene = await new UpdateSceneUseCase(getSceneRepo(data.projetId as string)).execute(data as never)
+      return ipcSuccess({ id: scene.id.value, titre: scene.titre, dureeMs: scene.dureeMs })
+    } catch (err) {
+      return ipcFailure(ErrorCodes.VALIDATION_ERROR, err instanceof Error ? err.message : 'Failed')
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.SCENES_DELETE, async (_event, input: unknown) => {
+    try {
+      const data = input as Record<string, unknown>
+      if (!data || typeof data.sceneId !== 'string' || typeof data.projetId !== 'string')
+        return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid input')
+      await new DeleteSceneUseCase(getSceneRepo(data.projetId as string)).execute(data.sceneId as string)
+      return ipcSuccess({ deleted: true })
+    } catch (err) {
+      return ipcFailure(ErrorCodes.VALIDATION_ERROR, err instanceof Error ? err.message : 'Failed')
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.SCENES_DUPLICATE, async (_event, input: unknown) => {
+    try {
+      const data = input as Record<string, unknown>
+      if (!data || typeof data.sceneId !== 'string' || typeof data.projetId !== 'string')
+        return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid input')
+      const scene = await new DuplicateSceneUseCase(getSceneRepo(data.projetId as string)).execute(data.sceneId as string)
+      return ipcSuccess({ id: scene.id.value, ordre: scene.ordre, type: scene.type })
+    } catch (err) {
+      return ipcFailure(ErrorCodes.VALIDATION_ERROR, err instanceof Error ? err.message : 'Failed')
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.SCENES_REORDER, async (_event, input: unknown) => {
+    try {
+      const data = input as Record<string, unknown>
+      if (!data || typeof data.projetId !== 'string' || !Array.isArray(data.orderedIds))
+        return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid input')
+      await new ReorderScenesUseCase(getSceneRepo(data.projetId as string)).execute(
+        data.projetId as string,
+        data.orderedIds as string[]
+      )
+      return ipcSuccess({ reordered: true })
+    } catch (err) {
+      return ipcFailure(ErrorCodes.VALIDATION_ERROR, err instanceof Error ? err.message : 'Failed')
+    }
+  })
+
+  logger.info('IPC handlers registered (Phase 1 + Phase 2 + Phase 3)')
 }

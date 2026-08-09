@@ -1,1 +1,0 @@
-const Database = require('better-sqlite3'); const db = new Database(':memory:'); const row = db.prepare('SELECT 42 AS answer').get(); console.log('ELECTRON_SQLITE_TEST: ' + row.answer); db.close(); process.exit(0)  
