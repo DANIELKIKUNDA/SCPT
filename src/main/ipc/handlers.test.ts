@@ -51,6 +51,18 @@ vi.mock('../preferences/store', () => ({
   }))
 }))
 
+vi.mock('../persistence/lock-manager', () => ({
+  getLockManager: vi.fn(() => ({
+    acquireLock: vi.fn(() => Promise.resolve()),
+    releaseLock: vi.fn(() => Promise.resolve()),
+    isLocked: vi.fn(() => false),
+    releaseAll: vi.fn(() => Promise.resolve())
+  })),
+  ProjectLockedError: class extends Error {
+    constructor(id: string) { super(`Project ${id} is already locked`); this.name = 'ProjectLockedError' }
+  }
+}))
+
 import { registerIpcHandlers } from './handlers'
 import { ipcMain } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc/channels'

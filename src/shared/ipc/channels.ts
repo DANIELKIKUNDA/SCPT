@@ -7,7 +7,8 @@ export const IPC_CHANNELS = {
   PROJECTS_OPEN: 'projects:open',
   PROJECTS_LIST_RECENT: 'projects:list-recent',
   PROJECTS_ARCHIVE: 'projects:archive',
-  PROJECTS_RESTORE: 'projects:restore'
+  PROJECTS_RESTORE: 'projects:restore',
+  PROJECTS_CLOSE: 'projects:close'
 } as const
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]

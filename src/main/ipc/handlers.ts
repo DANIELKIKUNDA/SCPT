@@ -15,6 +15,7 @@ import { OpenProjectUseCase } from '../../contexts/projects/application/use-case
 import { ListRecentUseCase } from '../../contexts/projects/application/use-cases/list-recent.use-case'
 import { ArchiveProjectUseCase } from '../../contexts/projects/application/use-cases/archive-project.use-case'
 import { RestoreProjectUseCase } from '../../contexts/projects/application/use-cases/restore-project.use-case'
+import { getLockManager, ProjectLockedError } from '../persistence/lock-manager'
 import { join } from 'path'
 
 let repo: ReturnType<typeof createSqliteProjectRepository> | null = null
@@ -38,8 +39,9 @@ export function registerIpcHandlers(): void {
 
   const ensureRepo = () => {
     const r = getProjectRepo()
+    const lm = getLockManager()
     _createProject ??= new CreateProjectUseCase(r)
-    _openProject ??= new OpenProjectUseCase(r)
+    _openProject ??= new OpenProjectUseCase(r, lm)
     _listRecent ??= new ListRecentUseCase(r)
     _archiveProject ??= new ArchiveProjectUseCase(r)
     _restoreProject ??= new RestoreProjectUseCase(r)
@@ -147,7 +149,26 @@ export function registerIpcHandlers(): void {
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
+      if (err instanceof ProjectLockedError) {
+        logger.warn({ projectId }, 'Project locked')
+        return ipcFailure(ErrorCodes.IPC_ERROR, message)
+      }
       logger.error({ err, projectId }, 'projects:open failed')
+      return ipcFailure(ErrorCodes.IPC_ERROR, message)
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.PROJECTS_CLOSE, async (_event, projectId: unknown) => {
+    logger.info({ projectId }, 'projects:close received')
+    try {
+      if (typeof projectId !== 'string') {
+        return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid project ID')
+      }
+      await getLockManager().releaseLock(projectId)
+      return ipcSuccess({ released: true })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      logger.error({ err, projectId }, 'projects:close failed')
       return ipcFailure(ErrorCodes.IPC_ERROR, message)
     }
   })
@@ -212,5 +233,5 @@ export function registerIpcHandlers(): void {
     }
   })
 
-  logger.info('IPC handlers registered (Phase 1 + Phase 2)')
+  logger.info('IPC handlers registered (Phase 1 + Phase 2 + Lock)')
 }
