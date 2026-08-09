@@ -9,22 +9,42 @@ import {
   PartialPreferencesSchema
 } from '../../shared/validation/preferences-schema'
 
-import { InMemoryProjetAudiovisuelRepository } from '../../contexts/projects/infrastructure/persistence/in-memory-project-repository'
+import { createSqliteProjectRepository } from '../../contexts/projects/infrastructure/persistence/drizzle-project-repository'
 import { CreateProjectUseCase } from '../../contexts/projects/application/use-cases/create-project.use-case'
 import { OpenProjectUseCase } from '../../contexts/projects/application/use-cases/open-project.use-case'
 import { ListRecentUseCase } from '../../contexts/projects/application/use-cases/list-recent.use-case'
 import { ArchiveProjectUseCase } from '../../contexts/projects/application/use-cases/archive-project.use-case'
 import { RestoreProjectUseCase } from '../../contexts/projects/application/use-cases/restore-project.use-case'
+import { join } from 'path'
 
-// In-memory repository for now — will be swapped to Drizzle/SQLite when native build is available
-const projectRepo = new InMemoryProjetAudiovisuelRepository()
-const createProject = new CreateProjectUseCase(projectRepo)
-const openProject = new OpenProjectUseCase(projectRepo)
-const listRecent = new ListRecentUseCase(projectRepo)
-const archiveProject = new ArchiveProjectUseCase(projectRepo)
-const restoreProject = new RestoreProjectUseCase(projectRepo)
+let repo: ReturnType<typeof createSqliteProjectRepository> | null = null
+
+function getProjectRepo(): ReturnType<typeof createSqliteProjectRepository> {
+  if (!repo) {
+    const dbPath = join(app.getPath('userData'), 'scpt-catalog.sqlite')
+    logger.info({ dbPath }, 'Opening SQLite catalog')
+    repo = createSqliteProjectRepository(dbPath)
+  }
+  return repo
+}
 
 export function registerIpcHandlers(): void {
+  // Initialize repo lazily on first handler call to ensure app is ready
+  let _createProject: CreateProjectUseCase
+  let _openProject: OpenProjectUseCase
+  let _listRecent: ListRecentUseCase
+  let _archiveProject: ArchiveProjectUseCase
+  let _restoreProject: RestoreProjectUseCase
+
+  const ensureRepo = () => {
+    const r = getProjectRepo()
+    _createProject ??= new CreateProjectUseCase(r)
+    _openProject ??= new OpenProjectUseCase(r)
+    _listRecent ??= new ListRecentUseCase(r)
+    _archiveProject ??= new ArchiveProjectUseCase(r)
+    _restoreProject ??= new RestoreProjectUseCase(r)
+  }
+  
   // Phase 1 handlers
   ipcMain.handle(IPC_CHANNELS.SYSTEM_PING, () => {
     logger.debug('system:ping received')
@@ -86,9 +106,10 @@ export function registerIpcHandlers(): void {
 
   // Phase 2 handlers
   ipcMain.handle(IPC_CHANNELS.PROJECTS_CREATE, async (_event, input: unknown) => {
+    ensureRepo()
     logger.info('projects:create received')
     try {
-      const projet = await createProject.execute(input)
+      const projet = await _createProject.execute(input)
       return ipcSuccess({
         id: projet.id.value,
         titre: projet.titre,
@@ -109,7 +130,8 @@ export function registerIpcHandlers(): void {
       if (typeof projectId !== 'string') {
         return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid project ID')
       }
-      const projet = await openProject.execute(projectId)
+      ensureRepo()
+      const projet = await _openProject.execute(projectId)
       return ipcSuccess({
         id: projet.id.value,
         titre: projet.titre,
@@ -133,9 +155,10 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.PROJECTS_LIST_RECENT, async () => {
     logger.info('projects:list-recent received')
     try {
-      const projects = await listRecent.execute(10)
+      ensureRepo()
+      const projects = await _listRecent.execute(10)
       return ipcSuccess(
-        projects.map((p) => ({
+        projects.map((p: { id: { value: string }; titre: string; type: string; statut: string; updatedAt: Date; isArchived: boolean }) => ({
           id: p.id.value,
           titre: p.titre,
           type: p.type,
@@ -156,7 +179,8 @@ export function registerIpcHandlers(): void {
       if (typeof projectId !== 'string') {
         return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid project ID')
       }
-      const projet = await archiveProject.execute(projectId)
+      ensureRepo()
+      const projet = await _archiveProject.execute(projectId)
       return ipcSuccess({
         id: projet.id.value,
         statut: projet.statut,
@@ -175,7 +199,8 @@ export function registerIpcHandlers(): void {
       if (typeof projectId !== 'string') {
         return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid project ID')
       }
-      const projet = await restoreProject.execute(projectId)
+      ensureRepo()
+      const projet = await _restoreProject.execute(projectId)
       return ipcSuccess({
         id: projet.id.value,
         statut: projet.statut

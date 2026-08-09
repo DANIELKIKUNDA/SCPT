@@ -40,7 +40,6 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   logger.info('Electron app ready')
-
   configureCSP()
   registerIpcHandlers()
 
