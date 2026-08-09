@@ -26,6 +26,8 @@ export interface EditorState {
   isDirty: boolean
   /** Error message if any */
   error: string | null
+  /** Undo stack: snapshots of scenes before mutations */
+  undoStack: SceneViewData[][]
 
   setProjectId: (id: string | null) => void
   setScenes: (scenes: SceneViewData[]) => void
@@ -36,6 +38,8 @@ export interface EditorState {
   reorderScenes: (orderedIds: string[]) => void
   setDirty: (dirty: boolean) => void
   setError: (error: string | null) => void
+  /** Undo the last mutation (reorder, update, delete, etc.) */
+  undo: () => void
   /** Get the currently selected scene object */
   selectedScene: () => SceneViewData | null
 }
@@ -46,33 +50,51 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedSceneId: null,
   isDirty: false,
   error: null,
+  undoStack: [],
 
   setProjectId: (id) => set({ projectId: id }),
   setScenes: (scenes) => set({ scenes }),
 
   selectScene: (id) => set({ selectedSceneId: id }),
 
-  addScene: (scene) => set((s) => ({ scenes: [...s.scenes, scene], isDirty: false })),
+  addScene: (scene) => set((s) => {
+    s.undoStack.push([...s.scenes])
+    return { scenes: [...s.scenes, scene], isDirty: false }
+  }),
 
   updateScene: (id, data) =>
-    set((s) => ({
-      scenes: s.scenes.map((sc) => (sc.id === id ? { ...sc, ...data } : sc)),
-      isDirty: true
-    })),
+    set((s) => {
+      s.undoStack.push([...s.scenes])
+      return {
+        scenes: s.scenes.map((sc) => (sc.id === id ? { ...sc, ...data } : sc)),
+        isDirty: true
+      }
+    }),
 
   removeScene: (id) =>
-    set((s) => ({
-      scenes: s.scenes.filter((sc) => sc.id !== id),
-      selectedSceneId: s.selectedSceneId === id ? null : s.selectedSceneId,
-      isDirty: false
-    })),
+    set((s) => {
+      s.undoStack.push([...s.scenes])
+      return {
+        scenes: s.scenes.filter((sc) => sc.id !== id),
+        selectedSceneId: s.selectedSceneId === id ? null : s.selectedSceneId,
+        isDirty: false
+      }
+    }),
 
   reorderScenes: (orderedIds) =>
     set((s) => {
+      s.undoStack.push([...s.scenes])
       const reordered = orderedIds
         .map((id) => s.scenes.find((sc) => sc.id === id))
         .filter(Boolean) as SceneViewData[]
       return { scenes: reordered, isDirty: true }
+    }),
+
+  undo: () =>
+    set((s) => {
+      const prev = s.undoStack.pop()
+      if (!prev) return {}
+      return { scenes: prev, isDirty: false }
     }),
 
   setDirty: (dirty) => set({ isDirty: dirty }),

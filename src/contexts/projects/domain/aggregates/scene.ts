@@ -1,6 +1,7 @@
 import { SceneId } from '../value-objects/scene-id'
 import { type SceneType, validateSceneType } from '../value-objects/scene-type'
 import { ProjetAudiovisuelId } from '../value-objects/projet-audiovisuel-id'
+import { VersionMetier } from '../value-objects/version-metier'
 
 /**
  * Minimal CompositionScene for Phase 3.
@@ -34,6 +35,7 @@ export interface SceneProps {
   dureeMs: number
   composition: CompositionScene
   transition: TransitionScene
+  version: VersionMetier
 }
 
 const DEFAULT_COMPOSITION: CompositionScene = {
@@ -77,7 +79,8 @@ export class Scene {
       texteAffiche: params.texteAffiche ?? null,
       dureeMs: params.dureeMs ?? 5000,
       composition: params.composition ?? { ...DEFAULT_COMPOSITION },
-      transition: params.transition ?? { ...DEFAULT_TRANSITION }
+      transition: params.transition ?? { ...DEFAULT_TRANSITION },
+      version: VersionMetier.initial()
     })
   }
 
@@ -96,6 +99,7 @@ export class Scene {
   get dureeMs(): number { return this.props.dureeMs }
   get composition(): CompositionScene { return this.props.composition }
   get transition(): TransitionScene { return this.props.transition }
+  get version(): VersionMetier { return this.props.version }
 
   /** Returns a serializable snapshot for IPC */
   toJSON(): SceneProps {
@@ -127,7 +131,8 @@ export class Scene {
       texteAffiche: params.texteAffiche !== undefined ? params.texteAffiche : this.props.texteAffiche,
       dureeMs: params.dureeMs !== undefined ? params.dureeMs : this.props.dureeMs,
       composition: params.composition ?? this.props.composition,
-      transition: params.transition ?? this.props.transition
+      transition: params.transition ?? this.props.transition,
+      version: this.props.version.next()
     })
   }
 }

@@ -25,15 +25,13 @@ export function SceneProperties() {
   })
 
   useEffect(() => {
-    if (selectedScene) {
-      reset({
-        titre: selectedScene.titre ?? '',
-        narrationTexte: selectedScene.narrationTexte ?? '',
-        texteAffiche: selectedScene.texteAffiche ?? '',
-        dureeMs: selectedScene.dureeMs
-      })
-    }
-  }, [selectedScene?.id, reset])
+    reset({
+      titre: selectedScene?.titre ?? '',
+      narrationTexte: selectedScene?.narrationTexte ?? '',
+      texteAffiche: selectedScene?.texteAffiche ?? '',
+      dureeMs: selectedScene?.dureeMs ?? 5000
+    })
+  }, [selectedScene?.id, selectedScene?.titre, selectedScene?.narrationTexte, selectedScene?.texteAffiche, selectedScene?.dureeMs, reset])
 
   const onSubmit = useCallback((data: SceneFormData) => {
     if (!selectedScene || !projectId) return

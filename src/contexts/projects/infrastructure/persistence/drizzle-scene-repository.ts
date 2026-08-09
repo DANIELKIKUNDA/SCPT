@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3'
 import { Scene } from '../../domain/aggregates/scene'
 import { SceneId } from '../../domain/value-objects/scene-id'
+import { VersionMetier } from '../../domain/value-objects/version-metier'
 import { ProjetAudiovisuelId } from '../../domain/value-objects/projet-audiovisuel-id'
 import type { SequenceSceneRepository } from '../../domain/repositories/sequence-scene.repository'
 import type { SceneType } from '../../domain/value-objects/scene-type'
@@ -16,6 +17,7 @@ interface SceneRow {
   duree_ms: number
   composition_json: string
   transition_json: string
+  version: number
 }
 
 function sceneToRow(scene: Scene): SceneRow {
@@ -30,7 +32,8 @@ function sceneToRow(scene: Scene): SceneRow {
     texte_affiche: json.texteAffiche,
     duree_ms: json.dureeMs,
     composition_json: JSON.stringify(json.composition),
-    transition_json: JSON.stringify(json.transition)
+    transition_json: JSON.stringify(json.transition),
+    version: json.version.value
   }
 }
 
@@ -45,19 +48,15 @@ function rowToScene(row: SceneRow): Scene {
     texteAffiche: row.texte_affiche,
     dureeMs: row.duree_ms,
     composition: JSON.parse(row.composition_json),
-    transition: JSON.parse(row.transition_json)
+    transition: JSON.parse(row.transition_json),
+    version: VersionMetier.from(row.version)
   })
 }
 
-/**
- * SQLite-backed SequenceSceneRepository.
- * Each project has its own project.sqlite; this adapter works on a single db.
- */
 export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepository {
   const db = new Database(dbPath)
   db.pragma('journal_mode = WAL')
 
-  // Migration: ensure scenes table exists
   db.exec(`
     CREATE TABLE IF NOT EXISTS scenes (
       id TEXT PRIMARY KEY NOT NULL,
@@ -69,18 +68,18 @@ export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepos
       texte_affiche TEXT,
       duree_ms INTEGER NOT NULL DEFAULT 5000,
       composition_json TEXT NOT NULL DEFAULT '{}',
-      transition_json TEXT NOT NULL DEFAULT '{}'
+      transition_json TEXT NOT NULL DEFAULT '{}',
+      version INTEGER NOT NULL DEFAULT 1
     )
   `)
 
-  // Ensure unique order per project (ignoring existing duplicates from incomplete migration)
   try {
     db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_scenes_projet_ordre ON scenes(projet_id, ordre)')
   } catch { /* index may already exist */ }
 
   const insertStmt = db.prepare(`
-    INSERT OR REPLACE INTO scenes (id, projet_id, ordre, type, titre, narration_texte, texte_affiche, duree_ms, composition_json, transition_json)
-    VALUES (@id, @projet_id, @ordre, @type, @titre, @narration_texte, @texte_affiche, @duree_ms, @composition_json, @transition_json)
+    INSERT OR REPLACE INTO scenes (id, projet_id, ordre, type, titre, narration_texte, texte_affiche, duree_ms, composition_json, transition_json, version)
+    VALUES (@id, @projet_id, @ordre, @type, @titre, @narration_texte, @texte_affiche, @duree_ms, @composition_json, @transition_json, @version)
   `)
 
   const findByProjetStmt = db.prepare('SELECT * FROM scenes WHERE projet_id = ? ORDER BY ordre ASC')
@@ -116,7 +115,7 @@ export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepos
 
       const nextOrdre = (maxOrdreStmt.get(original.projet_id) as { max_ordre: number }).max_ordre + 1
 
-      const duplicate = Scene.create({
+      const dup = Scene.create({
         id: SceneId.generate(),
         projetId: ProjetAudiovisuelId.from(original.projet_id),
         ordre: nextOrdre,
@@ -129,8 +128,8 @@ export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepos
         transition: JSON.parse(original.transition_json)
       })
 
-      insertStmt.run(sceneToRow(duplicate))
-      return duplicate
+      insertStmt.run(sceneToRow(dup))
+      return dup
     },
 
     async delete(id: SceneId): Promise<void> {
@@ -139,7 +138,6 @@ export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepos
 
       const deleteInTx = db.transaction(() => {
         deleteStmt.run(id.value)
-        // Compact remaining orders
         compactOrdreStmt.run(scene.projet_id)
       })
       deleteInTx()
@@ -151,18 +149,15 @@ export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepos
         const currentIds = new Set(currentScenes.map(s => s.id))
         const newIds = new Set(orderedIds.map(id => id.value))
 
-        // Validate: same set of IDs
         if (currentIds.size !== newIds.size || ![...currentIds].every(id => newIds.has(id))) {
           throw new Error('Reorder must include exactly the same scene IDs')
         }
 
-        // Phase 1: shift all ordres to a temporary range (negative) to avoid unique constraint conflicts
         const offset = currentScenes.length + 1
         currentScenes.forEach((scene, i) => {
           updateOrdreStmt.run(-(i + 1) - offset, scene.id)
         })
 
-        // Phase 2: assign final orders
         orderedIds.forEach((sceneId, index) => {
           updateOrdreStmt.run(index + 1, sceneId.value)
         })
