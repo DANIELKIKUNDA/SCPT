@@ -20,6 +20,7 @@ const electronAPI = {
   scenesReorder: (input: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.SCENES_REORDER, input),
   mediaImport: (input: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.MEDIA_IMPORT, input),
   mediaList: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.MEDIA_LIST, projectId),
+  mediaAssociate: (input: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.MEDIA_ASSOCIATE, input),
   mediaMarkMissing: (input: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.MEDIA_MARK_MISSING, input),
   mediaReplace: (input: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.MEDIA_REPLACE, input)
 }

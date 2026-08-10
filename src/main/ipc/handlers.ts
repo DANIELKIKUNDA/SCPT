@@ -20,6 +20,7 @@ import { join } from 'path'
 import { ProjetAudiovisuelId } from '../../contexts/projects/domain/value-objects/projet-audiovisuel-id'
 import { getProjectManifestService } from '../persistence/project-manifest'
 import { createDrizzleSceneRepository } from '../../contexts/projects/infrastructure/persistence/drizzle-scene-repository'
+import { SceneId } from '../../contexts/projects/domain/value-objects/scene-id'
 import { LoadSequenceUseCase } from '../../contexts/projects/application/use-cases/scene/load-sequence.use-case'
 import { CreateSceneUseCase } from '../../contexts/projects/application/use-cases/scene/create-scene.use-case'
 import { UpdateSceneUseCase } from '../../contexts/projects/application/use-cases/scene/update-scene.use-case'
@@ -27,11 +28,12 @@ import { DeleteSceneUseCase } from '../../contexts/projects/application/use-case
 import { DuplicateSceneUseCase } from '../../contexts/projects/application/use-cases/scene/duplicate-scene.use-case'
 import { ReorderScenesUseCase } from '../../contexts/projects/application/use-cases/scene/reorder-scenes.use-case'
 
-// Phase 4 imports
 import { createDrizzleMediaRepository } from '../../contexts/projects/infrastructure/persistence/drizzle-media-repository'
 import { ImportMediaUseCase } from '../../contexts/projects/application/use-cases/media/import-media.use-case'
 import { executeMediaImport } from './media-import.handler'
 import { RessourceMediaId } from '../../contexts/projects/domain/value-objects/ressource-media-id'
+import { RessourceMedia } from '../../contexts/projects/domain/aggregates/ressource-media'
+import { MediaWatcher, verifyMediaFiles } from '../persistence/media-watcher'
 
 let repo: ReturnType<typeof createSqliteProjectRepository> | null = null
 
@@ -43,6 +45,10 @@ function getProjectRepo(): ReturnType<typeof createSqliteProjectRepository> {
   }
   return repo
 }
+
+const mediaWatcher = new MediaWatcher(async (cheminRelatif: string) => {
+  logger.warn({ cheminRelatif }, 'Media file missing detected by watcher')
+})
 
 export function registerIpcHandlers(): void {
   let _createProject: CreateProjectUseCase
@@ -148,6 +154,28 @@ export function registerIpcHandlers(): void {
       }
       ensureRepo()
       const projet = await _openProject.execute(projectId)
+
+      // Start media watcher for this project
+      const projectDir = join(app.getPath('userData'), 'projects', projectId)
+      mediaWatcher.startWatching(projectId, projectDir)
+
+      // Verify all media files on project open
+      try {
+        const mediaRepo = createDrizzleMediaRepository(getProjectManifestService().getDatabasePath(projectId))
+        const medias = await mediaRepo.findAll(ProjetAudiovisuelId.from(projectId))
+        const missingPaths = verifyMediaFiles(projectDir, medias.filter(m => m.isDisponible).map(m => m.cheminRelatif))
+        for (const path of missingPaths) {
+          const media = medias.find(m => m.cheminRelatif === path)
+          if (media) {
+            const updated = media.marquerManquante()
+            await mediaRepo.save(updated)
+            logger.info({ mediaId: updated.id.value }, 'Media marked as missing on project open')
+          }
+        }
+      } catch (e) {
+        logger.warn({ err: e }, 'Media verification on project open failed (non-blocking)')
+      }
+
       return ipcSuccess({
         id: projet.id.value,
         titre: projet.titre,
@@ -179,6 +207,7 @@ export function registerIpcHandlers(): void {
         return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid project ID')
       }
       await getLockManager().releaseLock(projectId)
+      mediaWatcher.stopWatching(projectId)
       return ipcSuccess({ released: true })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
@@ -402,6 +431,18 @@ export function registerIpcHandlers(): void {
     }
   })
 
+  ipcMain.handle(IPC_CHANNELS.MEDIA_ASSOCIATE, async (_event, input: unknown) => {
+    try {
+      const data = input as { sceneId: string; mediaId: string; projetId: string }
+      if (!data || typeof data.sceneId !== 'string' || typeof data.mediaId !== 'string' || typeof data.projetId !== 'string')
+        return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid input')
+      await getSceneRepo(data.projetId).associateMedia(SceneId.from(data.sceneId), data.mediaId)
+      return ipcSuccess({ associated: true })
+    } catch (err) {
+      return ipcFailure(ErrorCodes.IPC_ERROR, err instanceof Error ? err.message : 'Association failed')
+    }
+  })
+
   ipcMain.handle(IPC_CHANNELS.MEDIA_MARK_MISSING, async (_event, input: unknown) => {
     try {
       const data = input as { mediaId: string; projetId: string }
@@ -415,6 +456,46 @@ export function registerIpcHandlers(): void {
       return ipcSuccess({ id: updated.id.value, statut: updated.statut })
     } catch (err) {
       return ipcFailure(ErrorCodes.IPC_ERROR, err instanceof Error ? err.message : 'Failed')
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.MEDIA_REPLACE, async (_event, input: unknown) => {
+    try {
+      const data = input as { mediaId: string; projetId: string; sourcePath: string }
+      if (!data || typeof data.mediaId !== 'string' || typeof data.projetId !== 'string' || typeof data.sourcePath !== 'string')
+        return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid input')
+
+      const repo = getMediaRepo(data.projetId)
+      const oldMedia = await repo.findById(RessourceMediaId.from(data.mediaId))
+      if (!oldMedia) return ipcFailure(ErrorCodes.IPC_ERROR, 'Media not found')
+
+      // Import the replacement file
+      const result = await executeMediaImport(data.sourcePath, data.projetId)
+
+      // Restore status and update metadata from the new import
+      const restored = oldMedia.restaurer()
+      const updatedMedia = RessourceMedia.fromPersistence({
+        id: restored.id,
+        projetId: restored.projetId,
+        type: result.type as never,
+        cheminRelatif: result.cheminRelatif,
+        nomOriginal: result.nomOriginal,
+        checksum: result.checksum,
+        tailleOctets: result.tailleOctets,
+        mimeType: result.mimeType,
+        largeur: result.largeur,
+        hauteur: result.hauteur,
+        dureeMs: result.dureeMs ?? null,
+        statut: restored.statut,
+        droits: restored.droits,
+        version: restored.version,
+        sourceMediaId: oldMedia.sourceMediaId
+      })
+
+      await repo.save(updatedMedia)
+      return ipcSuccess({ id: updatedMedia.id.value, cheminRelatif: updatedMedia.cheminRelatif, statut: updatedMedia.statut, thumbnailPath: result.thumbnailPath })
+    } catch (err) {
+      return ipcFailure(ErrorCodes.IPC_ERROR, err instanceof Error ? err.message : 'Replace failed')
     }
   })
 
