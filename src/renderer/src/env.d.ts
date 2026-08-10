@@ -17,6 +17,10 @@ interface ElectronAPI {
   scenesDelete: (input: { sceneId: string; projetId: string }) => Promise<unknown>
   scenesDuplicate: (input: { sceneId: string; projetId: string }) => Promise<unknown>
   scenesReorder: (input: { projetId: string; orderedIds: string[] }) => Promise<unknown>
+  mediaImport: (input: { sourcePath: string; projetId: string }) => Promise<unknown>
+  mediaList: (projetId: string) => Promise<unknown>
+  mediaMarkMissing: (input: { mediaId: string; projetId: string }) => Promise<unknown>
+  mediaReplace: (input: { mediaId: string; projetId: string; sourcePath: string }) => Promise<unknown>
 }
 
 interface Window {

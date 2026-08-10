@@ -15,7 +15,11 @@ describe('DrizzleMediaRepository (real SQLite)', () => {
 
   beforeEach(() => { dbPath = uniqueDbPath() })
   afterEach(() => {
-    try { if (existsSync(dbPath)) unlinkSync(dbPath); if (existsSync(dbPath + '-wal')) unlinkSync(dbPath + '-wal'); if (existsSync(dbPath + '-shm')) unlinkSync(dbPath + '-shm') } catch {}
+    try {
+      if (existsSync(dbPath)) unlinkSync(dbPath)
+      if (existsSync(dbPath + '-wal')) unlinkSync(dbPath + '-wal')
+      if (existsSync(dbPath + '-shm')) unlinkSync(dbPath + '-shm')
+    } catch { /* cleanup may fail if files still locked */ }
   })
 
   function make(title: string) {

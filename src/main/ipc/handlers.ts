@@ -27,6 +27,12 @@ import { DeleteSceneUseCase } from '../../contexts/projects/application/use-case
 import { DuplicateSceneUseCase } from '../../contexts/projects/application/use-cases/scene/duplicate-scene.use-case'
 import { ReorderScenesUseCase } from '../../contexts/projects/application/use-cases/scene/reorder-scenes.use-case'
 
+// Phase 4 imports
+import { createDrizzleMediaRepository } from '../../contexts/projects/infrastructure/persistence/drizzle-media-repository'
+import { ImportMediaUseCase } from '../../contexts/projects/application/use-cases/media/import-media.use-case'
+import { executeMediaImport } from './media-import.handler'
+import { RessourceMediaId } from '../../contexts/projects/domain/value-objects/ressource-media-id'
+
 let repo: ReturnType<typeof createSqliteProjectRepository> | null = null
 
 function getProjectRepo(): ReturnType<typeof createSqliteProjectRepository> {
@@ -39,7 +45,6 @@ function getProjectRepo(): ReturnType<typeof createSqliteProjectRepository> {
 }
 
 export function registerIpcHandlers(): void {
-  // Initialize repo lazily on first handler call to ensure app is ready
   let _createProject: CreateProjectUseCase
   let _openProject: OpenProjectUseCase
   let _listRecent: ListRecentUseCase
@@ -338,5 +343,80 @@ export function registerIpcHandlers(): void {
     }
   })
 
-  logger.info('IPC handlers registered (Phase 1 + Phase 2 + Phase 3)')
+  // Phase 4: Media handlers
+  const mediaRepos = new Map<string, ReturnType<typeof createDrizzleMediaRepository>>()
+
+  function getMediaRepo(projectId: string): ReturnType<typeof createDrizzleMediaRepository> {
+    let mr = mediaRepos.get(projectId)
+    if (!mr) {
+      const dbPath = getProjectManifestService().getDatabasePath(projectId)
+      mr = createDrizzleMediaRepository(dbPath)
+      mediaRepos.set(projectId, mr)
+    }
+    return mr
+  }
+
+  ipcMain.handle(IPC_CHANNELS.MEDIA_IMPORT, async (_event, input: unknown) => {
+    try {
+      const data = input as { sourcePath: string; projetId: string }
+      if (!data || typeof data.sourcePath !== 'string' || typeof data.projetId !== 'string') {
+        return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid input')
+      }
+      const result = await executeMediaImport(data.sourcePath, data.projetId)
+      const repo = getMediaRepo(data.projetId)
+      const media = await new ImportMediaUseCase(repo).execute({
+        projetId: data.projetId,
+        mimeType: result.mimeType,
+        type: result.type as never,
+        checksum: result.checksum,
+        cheminRelatif: result.cheminRelatif,
+        nomOriginal: result.nomOriginal,
+        tailleOctets: result.tailleOctets,
+        largeur: result.largeur,
+        hauteur: result.hauteur
+      })
+      return ipcSuccess({ ...result, id: media.id.value })
+    } catch (err) {
+      return ipcFailure(ErrorCodes.IPC_ERROR, err instanceof Error ? err.message : 'Import failed')
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.MEDIA_LIST, async (_event, projectId: unknown) => {
+    try {
+      if (typeof projectId !== 'string') return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid project ID')
+      const medias = await getMediaRepo(projectId).findAll(ProjetAudiovisuelId.from(projectId))
+      return ipcSuccess(medias.map(m => ({
+        id: m.id.value,
+        type: m.type,
+        cheminRelatif: m.cheminRelatif,
+        nomOriginal: m.nomOriginal,
+        checksum: m.checksum,
+        tailleOctets: m.tailleOctets,
+        mimeType: m.mimeType,
+        largeur: m.largeur,
+        hauteur: m.hauteur,
+        statut: m.statut
+      })))
+    } catch (err) {
+      return ipcFailure(ErrorCodes.IPC_ERROR, err instanceof Error ? err.message : 'Failed')
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.MEDIA_MARK_MISSING, async (_event, input: unknown) => {
+    try {
+      const data = input as { mediaId: string; projetId: string }
+      if (!data || typeof data.mediaId !== 'string' || typeof data.projetId !== 'string')
+        return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid input')
+      const repo = getMediaRepo(data.projetId)
+      const media = await repo.findById(RessourceMediaId.from(data.mediaId))
+      if (!media) return ipcFailure(ErrorCodes.IPC_ERROR, 'Media not found')
+      const updated = media.marquerManquante()
+      await repo.save(updated)
+      return ipcSuccess({ id: updated.id.value, statut: updated.statut })
+    } catch (err) {
+      return ipcFailure(ErrorCodes.IPC_ERROR, err instanceof Error ? err.message : 'Failed')
+    }
+  })
+
+  logger.info('IPC handlers registered (Phase 1 + Phase 2 + Phase 3 + Phase 4)')
 }

@@ -14,7 +14,12 @@ export const IPC_CHANNELS = {
   SCENES_UPDATE: 'scenes:update',
   SCENES_DELETE: 'scenes:delete',
   SCENES_DUPLICATE: 'scenes:duplicate',
-  SCENES_REORDER: 'scenes:reorder'
+  SCENES_REORDER: 'scenes:reorder',
+  MEDIA_IMPORT: 'media:import',
+  MEDIA_LIST: 'media:list',
+  MEDIA_ASSOCIATE: 'media:associate',
+  MEDIA_MARK_MISSING: 'media:mark-missing',
+  MEDIA_REPLACE: 'media:replace'
 } as const
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]

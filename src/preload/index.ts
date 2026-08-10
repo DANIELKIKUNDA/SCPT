@@ -17,7 +17,11 @@ const electronAPI = {
   scenesUpdate: (input: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.SCENES_UPDATE, input),
   scenesDelete: (input: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.SCENES_DELETE, input),
   scenesDuplicate: (input: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.SCENES_DUPLICATE, input),
-  scenesReorder: (input: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.SCENES_REORDER, input)
+  scenesReorder: (input: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.SCENES_REORDER, input),
+  mediaImport: (input: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.MEDIA_IMPORT, input),
+  mediaList: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.MEDIA_LIST, projectId),
+  mediaMarkMissing: (input: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.MEDIA_MARK_MISSING, input),
+  mediaReplace: (input: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.MEDIA_REPLACE, input)
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

@@ -39,7 +39,7 @@ describe('RessourceMedia (domain)', () => {
 
   it('rejects invalid type', () => {
     expect(() => RessourceMedia.create({
-      projetId, type: 'invalid' as any, cheminRelatif: 'm/p.png', nomOriginal: 'x', checksum: 'a', tailleOctets: 0, mimeType: 'image/png'
+      projetId, type: 'invalid' as 'image', cheminRelatif: 'm/p.png', nomOriginal: 'x', checksum: 'a', tailleOctets: 0, mimeType: 'image/png'
     })).toThrow('Invalid MediaType')
   })
 
@@ -71,7 +71,7 @@ describe('RessourceMedia (domain)', () => {
     const media = RessourceMedia.fromPersistence({
       id, projetId, type: 'audio', cheminRelatif: 'media/voice.wav', nomOriginal: 'voice.wav', checksum: 'sha256:def', tailleOctets: 5000,
       mimeType: 'audio/wav', dureeMs: 3000, largeur: null, hauteur: null, statut: 'disponible', droits: 'libre',
-      version: { value: 3 } as any, sourceMediaId: null
+      version: { value: 3 } as import('../../value-objects/version-metier').VersionMetier, sourceMediaId: null
     })
     expect(media.id).toEqual(id)
     expect(media.mimeType).toBe('audio/wav')
