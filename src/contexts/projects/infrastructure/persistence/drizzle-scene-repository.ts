@@ -18,9 +18,10 @@ interface SceneRow {
   composition_json: string
   transition_json: string
   version: number
+  media_id: string | null
 }
 
-function sceneToRow(scene: Scene): SceneRow {
+function sceneToRow(scene: Scene, mediaId?: string | null): SceneRow {
   const json = scene.toJSON()
   return {
     id: json.id.value,
@@ -33,7 +34,8 @@ function sceneToRow(scene: Scene): SceneRow {
     duree_ms: json.dureeMs,
     composition_json: JSON.stringify(json.composition),
     transition_json: JSON.stringify(json.transition),
-    version: json.version.value
+    version: json.version.value,
+    media_id: mediaId ?? null
   }
 }
 
@@ -53,7 +55,10 @@ function rowToScene(row: SceneRow): Scene {
   })
 }
 
-export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepository {
+export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepository & {
+  associateMedia: (sceneId: SceneId, mediaId: string | null) => Promise<void>
+  getMediaId: (sceneId: SceneId) => Promise<string | null>
+} {
   const db = new Database(dbPath)
   db.pragma('journal_mode = WAL')
 
@@ -69,7 +74,8 @@ export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepos
       duree_ms INTEGER NOT NULL DEFAULT 5000,
       composition_json TEXT NOT NULL DEFAULT '{}',
       transition_json TEXT NOT NULL DEFAULT '{}',
-      version INTEGER NOT NULL DEFAULT 1
+      version INTEGER NOT NULL DEFAULT 1,
+      media_id TEXT
     )
   `)
 
@@ -78,8 +84,8 @@ export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepos
   } catch { /* index may already exist */ }
 
   const insertStmt = db.prepare(`
-    INSERT OR REPLACE INTO scenes (id, projet_id, ordre, type, titre, narration_texte, texte_affiche, duree_ms, composition_json, transition_json, version)
-    VALUES (@id, @projet_id, @ordre, @type, @titre, @narration_texte, @texte_affiche, @duree_ms, @composition_json, @transition_json, @version)
+    INSERT OR REPLACE INTO scenes (id, projet_id, ordre, type, titre, narration_texte, texte_affiche, duree_ms, composition_json, transition_json, version, media_id)
+    VALUES (@id, @projet_id, @ordre, @type, @titre, @narration_texte, @texte_affiche, @duree_ms, @composition_json, @transition_json, @version, @media_id)
   `)
 
   const findByProjetStmt = db.prepare('SELECT * FROM scenes WHERE projet_id = ? ORDER BY ordre ASC')
@@ -92,6 +98,8 @@ export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepos
       SELECT COUNT(*) FROM scenes AS s2 WHERE s2.projet_id = scenes.projet_id AND s2.ordre <= scenes.ordre
     ) WHERE projet_id = ?
   `)
+  const associateMediaStmt = db.prepare('UPDATE scenes SET media_id = ? WHERE id = ?')
+  const getMediaIdStmt = db.prepare('SELECT media_id FROM scenes WHERE id = ?')
 
   return {
     async loadSequence(projetId: ProjetAudiovisuelId): Promise<Scene[]> {
@@ -128,8 +136,9 @@ export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepos
         transition: JSON.parse(original.transition_json)
       })
 
-      insertStmt.run(sceneToRow(dup))
-      return dup
+      insertStmt.run(sceneToRow(dup, original.media_id))
+      const saved = findByIdStmt.get(dup.id.value) as SceneRow
+      return rowToScene(saved)
     },
 
     async delete(id: SceneId): Promise<void> {
@@ -168,6 +177,15 @@ export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepos
     async nextOrdre(projetId: ProjetAudiovisuelId): Promise<number> {
       const row = maxOrdreStmt.get(projetId.value) as { max_ordre: number }
       return row.max_ordre + 1
+    },
+
+    async associateMedia(sceneId: SceneId, mediaId: string | null): Promise<void> {
+      associateMediaStmt.run(mediaId, sceneId.value)
+    },
+
+    async getMediaId(sceneId: SceneId): Promise<string | null> {
+      const row = getMediaIdStmt.get(sceneId.value) as { media_id: string | null } | undefined
+      return row?.media_id ?? null
     }
   }
 }
