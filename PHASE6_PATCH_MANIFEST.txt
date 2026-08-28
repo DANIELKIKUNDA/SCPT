@@ -1,0 +1,45 @@
+SCPT — Phase 6 — Patch d’implémentation Narration locale
+
+Baseline attendue : Phase 5 figée + PREFLIGHT Phase 6 définitivement validé.
+Ce patch contient uniquement les fichiers ajoutés/modifiés par l’implémentation métier Phase 6.
+Les ressources Piper/voix et dépendances Phase 6 proviennent déjà du preflight et ne sont pas dupliquées dans ce patch.
+
+FICHIERS DU PATCH
+- docs/reports/phase6-implementation-report.md
+- electron.vite.config.ts
+- src/contexts/projects/application/ports/generation-voix.port.ts
+- src/contexts/projects/application/ports/narration-audio.port.ts
+- src/contexts/projects/application/use-cases/narration/__tests__/narration-use-cases.test.ts
+- src/contexts/projects/application/use-cases/narration/generate-narration.use-case.ts
+- src/contexts/projects/application/use-cases/narration/get-narration-track.use-case.ts
+- src/contexts/projects/application/use-cases/narration/import-narration.use-case.ts
+- src/contexts/projects/application/use-cases/narration/read-narration-audio.use-case.ts
+- src/contexts/projects/application/use-cases/narration/select-final-take.use-case.ts
+- src/contexts/projects/domain/aggregates/__tests__/piste-narration.test.ts
+- src/contexts/projects/domain/aggregates/piste-narration.ts
+- src/contexts/projects/domain/repositories/piste-narration.repository.ts
+- src/contexts/projects/domain/value-objects/piste-narration-id.ts
+- src/contexts/projects/infrastructure/narration/__tests__/narration-filesystem.test.ts
+- src/contexts/projects/infrastructure/narration/__tests__/piper-generation-adapter.test.ts
+- src/contexts/projects/infrastructure/narration/narration-filesystem.ts
+- src/contexts/projects/infrastructure/narration/piper-generation-adapter.ts
+- src/contexts/projects/infrastructure/persistence/__tests__/drizzle-narration-repository.test.ts
+- src/contexts/projects/infrastructure/persistence/drizzle-narration-repository.ts
+- src/main/ipc/handlers.ts
+- src/main/persistence/project-manifest.ts
+- src/preload/index.ts
+- src/renderer/src/components/editor/EditorWorkspace.tsx
+- src/renderer/src/components/narration/NarrationPanel.tsx
+- src/renderer/src/components/narration/NarrationWaveform.tsx
+- src/renderer/src/styles.css
+- src/shared/ipc/channels.ts
+- src/shared/types/electron-api.ts
+
+Contrôles statiques effectués dans l’environnement ChatGPT :
+- TypeScript/TSX source : 118 fichiers analysés, 0 erreur de syntaxe de parsing.
+- Imports relatifs source : 0 import relatif manquant détecté.
+- Tests source attendus après patch : 159 cas dans 27 fichiers (baseline 139 + 20 Phase 6).
+- Ressources Piper du preflight inchangées et checksums revérifiés.
+
+La certification finale pnpm typecheck/lint/test/build/dev doit être exécutée sur le poste Windows canonique.
+Phase 7 non commencée.

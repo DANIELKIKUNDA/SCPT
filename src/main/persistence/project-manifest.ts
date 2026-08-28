@@ -68,10 +68,18 @@ export class ProjectManifestService {
       mkdirSync(projectDir, { recursive: true })
     }
 
-    // Also create the database directory
-    const dbDir = join(projectDir, 'database')
-    if (!existsSync(dbDir)) {
-      mkdirSync(dbDir, { recursive: true })
+    // Canonical project directories created eagerly so later phases can reopen safely.
+    const requiredDirs = [
+      join(projectDir, 'database'),
+      join(projectDir, 'media', 'source'),
+      join(projectDir, 'media', 'thumbnails'),
+      join(projectDir, 'media', 'derived'),
+      join(projectDir, 'audio', 'narration'),
+      join(projectDir, 'audio', 'music'),
+      join(projectDir, 'audio', 'temp')
+    ]
+    for (const directory of requiredDirs) {
+      if (!existsSync(directory)) mkdirSync(directory, { recursive: true })
     }
 
     const manifestPath = this.getManifestPath(data.id)

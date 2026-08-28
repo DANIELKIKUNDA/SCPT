@@ -48,6 +48,26 @@ const DEFAULT_TRANSITION: TransitionScene = {
   durationMs: 300
 }
 
+function validateComposition(composition: CompositionScene): CompositionScene {
+  if (!composition.backgroundColor.trim()) {
+    throw new Error('Scene backgroundColor is required')
+  }
+  if (!['centered', 'top', 'split-left', 'split-right'].includes(composition.layout)) {
+    throw new Error(`Invalid scene layout: ${composition.layout}`)
+  }
+  return { ...composition }
+}
+
+function validateTransition(transition: TransitionScene): TransitionScene {
+  if (!['fade', 'slide-left', 'slide-right', 'none'].includes(transition.type)) {
+    throw new Error(`Invalid scene transition: ${transition.type}`)
+  }
+  if (!Number.isFinite(transition.durationMs) || transition.durationMs < 0) {
+    throw new Error('Scene transition duration must be >= 0')
+  }
+  return { ...transition }
+}
+
 export class Scene {
   private constructor(private readonly props: SceneProps) {}
 
@@ -78,8 +98,8 @@ export class Scene {
       narrationTexte: params.narrationTexte ?? null,
       texteAffiche: params.texteAffiche ?? null,
       dureeMs: params.dureeMs ?? 5000,
-      composition: params.composition ?? { ...DEFAULT_COMPOSITION },
-      transition: params.transition ?? { ...DEFAULT_TRANSITION },
+      composition: validateComposition(params.composition ?? DEFAULT_COMPOSITION),
+      transition: validateTransition(params.transition ?? DEFAULT_TRANSITION),
       version: VersionMetier.initial()
     })
   }
@@ -130,8 +150,8 @@ export class Scene {
       narrationTexte: params.narrationTexte !== undefined ? params.narrationTexte : this.props.narrationTexte,
       texteAffiche: params.texteAffiche !== undefined ? params.texteAffiche : this.props.texteAffiche,
       dureeMs: params.dureeMs !== undefined ? params.dureeMs : this.props.dureeMs,
-      composition: params.composition ?? this.props.composition,
-      transition: params.transition ?? this.props.transition,
+      composition: validateComposition(params.composition ?? this.props.composition),
+      transition: validateTransition(params.transition ?? this.props.transition),
       version: this.props.version.next()
     })
   }

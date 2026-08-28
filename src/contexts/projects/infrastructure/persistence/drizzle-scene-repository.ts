@@ -21,7 +21,66 @@ interface SceneRow {
   media_id: string | null
 }
 
-function sceneToRow(scene: Scene, mediaId?: string | null): SceneRow {
+const CREATE_SCENES_TABLE = `
+  CREATE TABLE IF NOT EXISTS scenes (
+    id TEXT PRIMARY KEY NOT NULL,
+    projet_id TEXT NOT NULL,
+    ordre INTEGER NOT NULL,
+    type TEXT NOT NULL CHECK(type IN ('texte','formule','image','code','diagramme')),
+    titre TEXT,
+    narration_texte TEXT,
+    texte_affiche TEXT,
+    duree_ms INTEGER NOT NULL DEFAULT 5000,
+    composition_json TEXT NOT NULL DEFAULT '{}',
+    transition_json TEXT NOT NULL DEFAULT '{}',
+    version INTEGER NOT NULL DEFAULT 1,
+    media_id TEXT
+  )
+`
+
+function ensurePhase5SceneSchema(db: Database.Database): void {
+  const table = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='scenes'").get() as
+    | { sql: string }
+    | undefined
+
+  if (!table) {
+    db.exec(CREATE_SCENES_TABLE)
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_scenes_projet_ordre ON scenes(projet_id, ordre)')
+    return
+  }
+
+  const columns = db.prepare('PRAGMA table_info(scenes)').all() as Array<{ name: string }>
+  const hasMediaId = columns.some((column) => column.name === 'media_id')
+  const acceptsDiagramme = table.sql.includes("'diagramme'")
+
+  if (hasMediaId && acceptsDiagramme) {
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_scenes_projet_ordre ON scenes(projet_id, ordre)')
+    return
+  }
+
+  const mediaProjection = hasMediaId ? 'media_id' : 'NULL AS media_id'
+  const migrate = db.transaction(() => {
+    db.exec('DROP INDEX IF EXISTS idx_scenes_projet_ordre')
+    db.exec('ALTER TABLE scenes RENAME TO scenes_phase4_backup')
+    db.exec(CREATE_SCENES_TABLE)
+    db.exec(`
+      INSERT INTO scenes (
+        id, projet_id, ordre, type, titre, narration_texte, texte_affiche,
+        duree_ms, composition_json, transition_json, version, media_id
+      )
+      SELECT
+        id, projet_id, ordre, type, titre, narration_texte, texte_affiche,
+        duree_ms, composition_json, transition_json, version, ${mediaProjection}
+      FROM scenes_phase4_backup
+    `)
+    db.exec('DROP TABLE scenes_phase4_backup')
+    db.exec('CREATE UNIQUE INDEX idx_scenes_projet_ordre ON scenes(projet_id, ordre)')
+  })
+
+  migrate()
+}
+
+function sceneToRow(scene: Scene, mediaId: string | null = null): SceneRow {
   const json = scene.toJSON()
   return {
     id: json.id.value,
@@ -35,7 +94,7 @@ function sceneToRow(scene: Scene, mediaId?: string | null): SceneRow {
     composition_json: JSON.stringify(json.composition),
     transition_json: JSON.stringify(json.transition),
     version: json.version.value,
-    media_id: mediaId ?? null
+    media_id: mediaId
   }
 }
 
@@ -58,34 +117,38 @@ function rowToScene(row: SceneRow): Scene {
 export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepository & {
   associateMedia: (sceneId: SceneId, mediaId: string | null) => Promise<void>
   getMediaId: (sceneId: SceneId) => Promise<string | null>
+  close: () => void
 } {
   const db = new Database(dbPath)
   db.pragma('journal_mode = WAL')
+  ensurePhase5SceneSchema(db)
 
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS scenes (
-      id TEXT PRIMARY KEY NOT NULL,
-      projet_id TEXT NOT NULL,
-      ordre INTEGER NOT NULL,
-      type TEXT NOT NULL CHECK(type IN ('texte','formule','image','code')),
-      titre TEXT,
-      narration_texte TEXT,
-      texte_affiche TEXT,
-      duree_ms INTEGER NOT NULL DEFAULT 5000,
-      composition_json TEXT NOT NULL DEFAULT '{}',
-      transition_json TEXT NOT NULL DEFAULT '{}',
-      version INTEGER NOT NULL DEFAULT 1,
-      media_id TEXT
+  // New rows keep Phase 3 INSERT OR REPLACE semantics for the unique order invariant.
+  // Existing rows use UPDATE so autosave never clears the Phase 4 media association.
+  const insertStmt = db.prepare(`
+    INSERT OR REPLACE INTO scenes (
+      id, projet_id, ordre, type, titre, narration_texte, texte_affiche,
+      duree_ms, composition_json, transition_json, version, media_id
+    )
+    VALUES (
+      @id, @projet_id, @ordre, @type, @titre, @narration_texte, @texte_affiche,
+      @duree_ms, @composition_json, @transition_json, @version, @media_id
     )
   `)
 
-  try {
-    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_scenes_projet_ordre ON scenes(projet_id, ordre)')
-  } catch { /* index may already exist */ }
-
-  const insertStmt = db.prepare(`
-    INSERT OR REPLACE INTO scenes (id, projet_id, ordre, type, titre, narration_texte, texte_affiche, duree_ms, composition_json, transition_json, version, media_id)
-    VALUES (@id, @projet_id, @ordre, @type, @titre, @narration_texte, @texte_affiche, @duree_ms, @composition_json, @transition_json, @version, @media_id)
+  const updateStmt = db.prepare(`
+    UPDATE scenes SET
+      projet_id = @projet_id,
+      ordre = @ordre,
+      type = @type,
+      titre = @titre,
+      narration_texte = @narration_texte,
+      texte_affiche = @texte_affiche,
+      duree_ms = @duree_ms,
+      composition_json = @composition_json,
+      transition_json = @transition_json,
+      version = @version
+    WHERE id = @id
   `)
 
   const findByProjetStmt = db.prepare('SELECT * FROM scenes WHERE projet_id = ? ORDER BY ordre ASC')
@@ -95,7 +158,8 @@ export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepos
   const updateOrdreStmt = db.prepare('UPDATE scenes SET ordre = ? WHERE id = ?')
   const compactOrdreStmt = db.prepare(`
     UPDATE scenes SET ordre = (
-      SELECT COUNT(*) FROM scenes AS s2 WHERE s2.projet_id = scenes.projet_id AND s2.ordre <= scenes.ordre
+      SELECT COUNT(*) FROM scenes AS s2
+      WHERE s2.projet_id = scenes.projet_id AND s2.ordre <= scenes.ordre
     ) WHERE projet_id = ?
   `)
   const associateMediaStmt = db.prepare('UPDATE scenes SET media_id = ? WHERE id = ?')
@@ -108,13 +172,14 @@ export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepos
     },
 
     async save(scene: Scene): Promise<void> {
-      insertStmt.run(sceneToRow(scene))
+      const existing = findByIdStmt.get(scene.id.value) as SceneRow | undefined
+      if (existing) updateStmt.run(sceneToRow(scene, existing.media_id))
+      else insertStmt.run(sceneToRow(scene))
     },
 
     async findById(id: SceneId): Promise<Scene | null> {
       const row = findByIdStmt.get(id.value) as SceneRow | undefined
-      if (!row) return null
-      return rowToScene(row)
+      return row ? rowToScene(row) : null
     },
 
     async duplicate(id: SceneId): Promise<Scene> {
@@ -122,8 +187,7 @@ export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepos
       if (!original) throw new Error(`Scene not found: ${id.value}`)
 
       const nextOrdre = (maxOrdreStmt.get(original.projet_id) as { max_ordre: number }).max_ordre + 1
-
-      const dup = Scene.create({
+      const duplicate = Scene.create({
         id: SceneId.generate(),
         projetId: ProjetAudiovisuelId.from(original.projet_id),
         ordre: nextOrdre,
@@ -136,8 +200,8 @@ export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepos
         transition: JSON.parse(original.transition_json)
       })
 
-      insertStmt.run(sceneToRow(dup, original.media_id))
-      const saved = findByIdStmt.get(dup.id.value) as SceneRow
+      insertStmt.run(sceneToRow(duplicate, original.media_id))
+      const saved = findByIdStmt.get(duplicate.id.value) as SceneRow
       return rowToScene(saved)
     },
 
@@ -155,16 +219,16 @@ export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepos
     async reorder(projectId: ProjetAudiovisuelId, orderedIds: SceneId[]): Promise<void> {
       const reorderTx = db.transaction(() => {
         const currentScenes = findByProjetStmt.all(projectId.value) as SceneRow[]
-        const currentIds = new Set(currentScenes.map(s => s.id))
-        const newIds = new Set(orderedIds.map(id => id.value))
+        const currentIds = new Set(currentScenes.map((scene) => scene.id))
+        const newIds = new Set(orderedIds.map((id) => id.value))
 
-        if (currentIds.size !== newIds.size || ![...currentIds].every(id => newIds.has(id))) {
+        if (currentIds.size !== newIds.size || ![...currentIds].every((id) => newIds.has(id))) {
           throw new Error('Reorder must include exactly the same scene IDs')
         }
 
         const offset = currentScenes.length + 1
-        currentScenes.forEach((scene, i) => {
-          updateOrdreStmt.run(-(i + 1) - offset, scene.id)
+        currentScenes.forEach((scene, index) => {
+          updateOrdreStmt.run(-(index + 1) - offset, scene.id)
         })
 
         orderedIds.forEach((sceneId, index) => {
@@ -186,6 +250,10 @@ export function createDrizzleSceneRepository(dbPath: string): SequenceSceneRepos
     async getMediaId(sceneId: SceneId): Promise<string | null> {
       const row = getMediaIdStmt.get(sceneId.value) as { media_id: string | null } | undefined
       return row?.media_id ?? null
+    },
+
+    close(): void {
+      db.close()
     }
   }
 }

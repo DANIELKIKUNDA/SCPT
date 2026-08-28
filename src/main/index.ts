@@ -3,6 +3,9 @@ import { join } from 'path'
 import { logger } from './logging/logger'
 import { configureCSP } from './security/csp'
 import { registerIpcHandlers } from './ipc/handlers'
+import { registerMediaProtocol, registerMediaScheme } from './protocols/media-protocol'
+
+registerMediaScheme()
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -40,7 +43,8 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   logger.info('Electron app ready')
-  configureCSP()
+  configureCSP(!app.isPackaged)
+  registerMediaProtocol()
   registerIpcHandlers()
 
   createWindow()

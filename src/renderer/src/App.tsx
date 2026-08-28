@@ -1,78 +1,17 @@
-import { useState, useEffect, useCallback } from 'react'
-
-declare global {
-  interface Window {
-    scpt?: {
-      system: {
-        ping: () => Promise<string>
-        getAppInfo: () => Promise<{
-          name: string
-          version: string
-          electronVersion: string
-          isDev: boolean
-        }>
-      }
-      preferences: {
-        get: (key: 'theme' | 'language' | 'reduceMotion') => Promise<{
-          key: string
-          value: unknown
-        }>
-        set: (partial: Record<string, unknown>) => Promise<{
-          theme: string
-          language: string
-          reduceMotion: boolean
-        }>
-      }
-      projects: {
-        create: (input: Record<string, unknown>) => Promise<{
-          id: string
-          titre: string
-          type: string
-          statut: string
-          createdAt: string
-        }>
-        open: (projectId: string) => Promise<{
-          id: string
-          titre: string
-          type: string
-          objectif: string
-          publicCible: string
-          langueSource: string
-          statut: string
-          isArchived: boolean
-        }>
-        listRecent: () => Promise<
-          {
-            id: string
-            titre: string
-            type: string
-            statut: string
-            updatedAt: string
-            isArchived: boolean
-          }[]
-        >
-        archive: (projectId: string) => Promise<{ id: string; statut: string }>
-        restore: (projectId: string) => Promise<{ id: string; statut: string }>
-      }
-    }
-  }
-}
-
-interface ProjectSummary {
-  id: string
-  titre: string
-  type: string
-  statut: string
-  updatedAt: string
-  isArchived: boolean
-}
+import { useCallback, useEffect, useState } from 'react'
+import type { ProjectDto, ProjectSummaryDto } from '../../shared/types/electron-api'
+import { EditorWorkspace } from './components/editor/EditorWorkspace'
+import { unwrapIpc } from './lib/ipc'
+import { useEditorStore } from './stores/editor-store'
 
 function App(): JSX.Element {
-  const [pingStatus, setPingStatus] = useState<string>('verification...')
-  const [appInfo, setAppInfo] = useState<string>('chargement...')
-  const [theme, setTheme] = useState<string>('system')
-  const [projects, setProjects] = useState<ProjectSummary[]>([])
+  const [pingStatus, setPingStatus] = useState('verification...')
+  const [appInfo, setAppInfo] = useState('chargement...')
+  const [theme, setTheme] = useState('system')
+  const [reduceMotion, setReduceMotion] = useState(false)
+  const [projects, setProjects] = useState<ProjectSummaryDto[]>([])
   const [projectsLoading, setProjectsLoading] = useState(false)
+  const [activeProject, setActiveProject] = useState<ProjectDto | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [formTitre, setFormTitre] = useState('')
   const [formType, setFormType] = useState('')
@@ -81,270 +20,287 @@ function App(): JSX.Element {
   const [formLangue, setFormLangue] = useState('fr')
   const [formError, setFormError] = useState<string | null>(null)
 
-  const api = window.scpt
+  const setProjectId = useEditorStore((state) => state.setProjectId)
+  const setScenes = useEditorStore((state) => state.setScenes)
+  const selectScene = useEditorStore((state) => state.selectScene)
+  const setDirty = useEditorStore((state) => state.setDirty)
+  const resetEditor = useEditorStore((state) => state.resetEditor)
 
-  const loadProjects = useCallback(async () => {
-    if (!api?.projects) return
+  const loadProjects = useCallback(async (): Promise<void> => {
+    const api = window.electronAPI
+    if (!api) return
     setProjectsLoading(true)
     try {
-      const data = await api.projects.listRecent()
-      setProjects(data)
-    } catch {
-      // ignore
+      setProjects(unwrapIpc(await api.projectsListRecent()))
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Impossible de charger les projets')
     } finally {
       setProjectsLoading(false)
     }
-  }, [api])
+  }, [])
 
   useEffect(() => {
     let cancelled = false
 
     async function init(): Promise<void> {
+      const api = window.electronAPI
       if (!api) {
         if (!cancelled) setPingStatus('preload non disponible')
         return
       }
 
       try {
-        const pong = await api.system.ping()
-        if (!cancelled) setPingStatus(pong === 'pong' ? 'connecte' : 'inattendu')
+        const pong = unwrapIpc(await api.systemPing())
+        if (!cancelled) setPingStatus(pong.message === 'pong' ? 'connecte' : 'inattendu')
       } catch {
         if (!cancelled) setPingStatus('erreur IPC')
       }
 
       try {
-        const info = await api.system.getAppInfo()
-        if (!cancelled)
-          setAppInfo(`${info.name} v${info.version} (Electron ${info.electronVersion})`)
+        const info = unwrapIpc(await api.systemGetAppInfo())
+        if (!cancelled) setAppInfo(`${info.name} v${info.version} · Electron ${info.electronVersion}`)
       } catch {
         if (!cancelled) setAppInfo('indisponible')
       }
 
       try {
-        const t = await api.preferences.get('theme')
-        if (!cancelled) setTheme(String(t.value))
+        const themePref = unwrapIpc(await api.preferencesGet('theme'))
+        const reduceMotionPref = unwrapIpc(await api.preferencesGet('reduceMotion'))
+        if (!cancelled) {
+          setTheme(String(themePref.value))
+          setReduceMotion(Boolean(reduceMotionPref.value))
+        }
       } catch {
-        // ignore
+        // Keep local defaults.
       }
 
       if (!cancelled) await loadProjects()
     }
 
-    init()
+    void init()
     return () => {
       cancelled = true
     }
-  }, [api, loadProjects])
+  }, [loadProjects])
 
-  const handleThemeChange = async (newTheme: string): Promise<void> => {
+  async function handleThemeChange(newTheme: string): Promise<void> {
+    const api = window.electronAPI
     if (!api) return
     try {
-      await api.preferences.set({ theme: newTheme })
+      unwrapIpc(await api.preferencesSet({ theme: newTheme }))
       setTheme(newTheme)
-    } catch {
-      // ignore
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Préférence impossible à enregistrer')
     }
   }
 
-  const handleCreateProject = async (): Promise<void> => {
-    if (!api?.projects) return
+  async function openProject(projectId: string): Promise<void> {
+    const api = window.electronAPI
+    if (!api) return
     setFormError(null)
 
     try {
-      await api.projects.create({
+      const project = unwrapIpc(await api.projectsOpen(projectId))
+      try {
+        const scenes = unwrapIpc(await api.scenesLoadSequence(projectId))
+        setProjectId(projectId)
+        setScenes(scenes)
+        selectScene(scenes[0]?.id ?? null)
+        setActiveProject(project)
+      } catch (error) {
+        await api.projectsClose(projectId)
+        throw error
+      }
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Erreur ouverture')
+    }
+  }
+
+  async function handleCreateProject(): Promise<void> {
+    const api = window.electronAPI
+    if (!api) return
+    setFormError(null)
+
+    try {
+      const created = unwrapIpc(await api.projectsCreate({
         titre: formTitre,
         type: formType,
         objectif: formObjectif,
         publicCible: formPublic,
         langueSource: formLangue
-      })
+      }))
       setShowCreateForm(false)
       setFormTitre('')
       setFormType('')
       setFormObjectif('')
       setFormPublic('')
       await loadProjects()
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Erreur de creation')
+      await openProject(created.id)
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Erreur de création')
     }
   }
 
-  const handleArchive = async (projectId: string): Promise<void> => {
-    if (!api?.projects) return
+  async function handleArchive(projectId: string): Promise<void> {
+    const api = window.electronAPI
+    if (!api) return
     try {
-      await api.projects.archive(projectId)
+      unwrapIpc(await api.projectsArchive(projectId))
       await loadProjects()
-    } catch {
-      // ignore
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Archivage impossible')
     }
   }
 
-  const handleRestore = async (projectId: string): Promise<void> => {
-    if (!api?.projects) return
+  async function handleRestore(projectId: string): Promise<void> {
+    const api = window.electronAPI
+    if (!api) return
     try {
-      await api.projects.restore(projectId)
+      unwrapIpc(await api.projectsRestore(projectId))
       await loadProjects()
-    } catch {
-      // ignore
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Restauration impossible')
     }
   }
 
-  const handleOpen = async (projectId: string): Promise<void> => {
-    if (!api?.projects) return
-    try {
-      const project = await api.projects.open(projectId)
-      alert(`Projet ouvert: ${project.titre} (statut: ${project.statut})`)
-      await loadProjects()
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Erreur ouverture')
+  async function flushEditor(): Promise<void> {
+    const api = window.electronAPI
+    const state = useEditorStore.getState()
+    if (!api || !state.projectId || !state.isDirty) return
+
+    unwrapIpc(await api.scenesReorder({
+      projetId: state.projectId,
+      orderedIds: state.scenes.map((scene) => scene.id)
+    }))
+
+    for (const scene of state.scenes) {
+      unwrapIpc(await api.scenesUpdate({
+        sceneId: scene.id,
+        projetId: state.projectId,
+        titre: scene.titre,
+        narrationTexte: scene.narrationTexte,
+        texteAffiche: scene.texteAffiche,
+        dureeMs: scene.dureeMs,
+        composition: scene.composition,
+        transition: scene.transition
+      }))
     }
+    setDirty(false)
+  }
+
+  async function closeEditor(): Promise<void> {
+    const api = window.electronAPI
+    if (!api || !activeProject) return
+    setFormError(null)
+    try {
+      await flushEditor()
+      unwrapIpc(await api.projectsClose(activeProject.id))
+      resetEditor()
+      setActiveProject(null)
+      await loadProjects()
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Fermeture du projet impossible')
+    }
+  }
+
+  if (activeProject) {
+    return (
+      <EditorWorkspace
+        project={activeProject}
+        reduceMotion={reduceMotion}
+        onClose={closeEditor}
+        onSave={flushEditor}
+      />
+    )
   }
 
   return (
-    <div className="container">
-      <h1>SCPT</h1>
-      <p className="subtitle">Application de bureau locale</p>
-      <div className="info">{appInfo}</div>
-
-      <div className="status">
-        <div className="status-row">
-          <span className="label">React</span>
-          <span className="value ok">fonctionnel</span>
-        </div>
-        <div className="status-row">
-          <span className="label">Electron</span>
-          <span className="value ok">fonctionnel</span>
-        </div>
-        <div className="status-row">
-          <span className="label">IPC Ping</span>
-          <span className={`value ${pingStatus === 'connecte' ? 'ok' : 'ko'}`}>
-            {pingStatus}
-          </span>
-        </div>
-        <div className="status-row">
-          <span className="label">Preferences</span>
-          <span className="value ok">accessible</span>
-        </div>
-      </div>
-
-      <div className="prefs-section">
-        <h3>Preferences</h3>
-        <div className="pref-row">
-          <span className="label">Theme</span>
-          <select
-            value={theme}
-            onChange={(e) => handleThemeChange(e.target.value)}
-            className="pref-select"
-          >
-            <option value="system">Systeme</option>
-            <option value="light">Clair</option>
-            <option value="dark">Sombre</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="projects-section">
-        <div className="projects-header">
-          <h3>Projets</h3>
-          <button className="btn" onClick={() => setShowCreateForm(!showCreateForm)}>
-            {showCreateForm ? 'Annuler' : 'Nouveau projet'}
-          </button>
+    <div className="home-shell">
+      <main className="container">
+        <div className="brand-block">
+          <h1>SCPT</h1>
+          <p className="subtitle">Application de bureau locale</p>
+          <div className="info">{appInfo}</div>
         </div>
 
-        {showCreateForm && (
-          <form
-            className="create-form"
-            onSubmit={(e) => {
-              e.preventDefault()
-              handleCreateProject()
-            }}
-          >
-            {formError && <p className="error-msg">{formError}</p>}
-            <input
-              placeholder="Titre"
-              value={formTitre}
-              onChange={(e) => setFormTitre(e.target.value)}
-              className="form-input"
-              required
-            />
-            <input
-              placeholder="Type (ex: tutoriel, demo)"
-              value={formType}
-              onChange={(e) => setFormType(e.target.value)}
-              className="form-input"
-              required
-            />
-            <textarea
-              placeholder="Objectif"
-              value={formObjectif}
-              onChange={(e) => setFormObjectif(e.target.value)}
-              className="form-input"
-              rows={3}
-              required
-            />
-            <input
-              placeholder="Public cible"
-              value={formPublic}
-              onChange={(e) => setFormPublic(e.target.value)}
-              className="form-input"
-              required
-            />
-            <input
-              placeholder="Langue source (fr, en...)"
-              value={formLangue}
-              onChange={(e) => setFormLangue(e.target.value)}
-              className="form-input"
-              maxLength={10}
-              required
-            />
-            <button type="submit" className="btn btn-primary">
-              Creer le projet
+        <div className="status" aria-label="État technique">
+          <div className="status-row"><span className="label">React</span><span className="value ok">fonctionnel</span></div>
+          <div className="status-row"><span className="label">Electron</span><span className="value ok">fonctionnel</span></div>
+          <div className="status-row">
+            <span className="label">IPC Ping</span>
+            <span className={`value ${pingStatus === 'connecte' ? 'ok' : 'ko'}`}>{pingStatus}</span>
+          </div>
+          <div className="status-row"><span className="label">Preferences</span><span className="value ok">accessible</span></div>
+        </div>
+
+        <section className="prefs-section">
+          <h3>Preferences</h3>
+          <div className="pref-row">
+            <span className="label">Theme</span>
+            <select value={theme} onChange={(event) => void handleThemeChange(event.target.value)} className="pref-select">
+              <option value="system">Système</option>
+              <option value="light">Clair</option>
+              <option value="dark">Sombre</option>
+            </select>
+          </div>
+        </section>
+
+        <section className="projects-section">
+          <div className="projects-header">
+            <div>
+              <h3>Projets</h3>
+              <p>Créez ou reprenez une production audiovisuelle.</p>
+            </div>
+            <button className="btn btn-primary" onClick={() => setShowCreateForm(!showCreateForm)}>
+              {showCreateForm ? 'Annuler' : 'Nouveau projet'}
             </button>
-          </form>
-        )}
+          </div>
 
-        {projectsLoading && <p>Chargement des projets...</p>}
+          {showCreateForm && (
+            <form
+              className="create-form"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void handleCreateProject()
+              }}
+            >
+              <input placeholder="Titre" value={formTitre} onChange={(event) => setFormTitre(event.target.value)} className="form-input" required />
+              <input placeholder="Type (ex: tutoriel, démonstration)" value={formType} onChange={(event) => setFormType(event.target.value)} className="form-input" required />
+              <textarea placeholder="Objectif" value={formObjectif} onChange={(event) => setFormObjectif(event.target.value)} className="form-input" rows={3} required />
+              <input placeholder="Public cible" value={formPublic} onChange={(event) => setFormPublic(event.target.value)} className="form-input" required />
+              <input placeholder="Langue source (fr, en...)" value={formLangue} onChange={(event) => setFormLangue(event.target.value)} className="form-input" maxLength={10} required />
+              <button type="submit" className="btn btn-primary">Créer et ouvrir</button>
+            </form>
+          )}
 
-        {!projectsLoading && projects.length === 0 && (
-          <p className="empty-msg">Aucun projet recent. Creez votre premier projet !</p>
-        )}
+          {formError && <p className="error-msg" role="alert">{formError}</p>}
+          {projectsLoading && <p>Chargement des projets...</p>}
+          {!projectsLoading && projects.length === 0 && <p className="empty-msg">Aucun projet récent. Créez votre premier projet.</p>}
 
-        <ul className="project-list">
-          {projects.map((p) => (
-            <li key={p.id} className={`project-item ${p.isArchived ? 'archived' : ''}`}>
-              <div className="project-info">
-                <strong>{p.titre}</strong>
-                <span className="project-meta">
-                  {p.type} — {p.statut} — {new Date(p.updatedAt).toLocaleDateString()}
-                </span>
-              </div>
-              <div className="project-actions">
-                {!p.isArchived && (
-                  <>
-                    <button className="btn btn-sm" onClick={() => handleOpen(p.id)}>
-                      Ouvrir
-                    </button>
-                    <button
-                      className="btn btn-sm btn-warn"
-                      onClick={() => handleArchive(p.id)}
-                    >
-                      Archiver
-                    </button>
-                  </>
-                )}
-                {p.isArchived && (
-                  <button
-                    className="btn btn-sm btn-restore"
-                    onClick={() => handleRestore(p.id)}
-                  >
-                    Restaurer
-                  </button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
+          <ul className="project-list">
+            {projects.map((project) => (
+              <li key={project.id} className={`project-item ${project.isArchived ? 'archived' : ''}`}>
+                <div className="project-info">
+                  <strong>{project.titre}</strong>
+                  <span className="project-meta">
+                    {project.type} · {project.statut} · {new Date(project.updatedAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="project-actions">
+                  {!project.isArchived ? (
+                    <>
+                      <button className="btn btn-sm" onClick={() => void openProject(project.id)}>Ouvrir</button>
+                      <button className="btn btn-sm btn-warn" onClick={() => void handleArchive(project.id)}>Archiver</button>
+                    </>
+                  ) : (
+                    <button className="btn btn-sm btn-restore" onClick={() => void handleRestore(project.id)}>Restaurer</button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </main>
     </div>
   )
 }

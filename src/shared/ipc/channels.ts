@@ -19,7 +19,13 @@ export const IPC_CHANNELS = {
   MEDIA_LIST: 'media:list',
   MEDIA_ASSOCIATE: 'media:associate',
   MEDIA_MARK_MISSING: 'media:mark-missing',
-  MEDIA_REPLACE: 'media:replace'
+  MEDIA_REPLACE: 'media:replace',
+  NARRATION_GET: 'narration:get',
+  NARRATION_GENERATE: 'narration:generate',
+  NARRATION_IMPORT: 'narration:import',
+  NARRATION_SELECT_FINAL: 'narration:select-final',
+  NARRATION_READ_AUDIO: 'narration:read-audio',
+  NARRATION_CANCEL: 'narration:cancel'
 } as const
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]

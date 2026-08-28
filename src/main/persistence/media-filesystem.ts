@@ -34,15 +34,20 @@ export function computeChecksum(filePath: string): string {
  * If `image.jpg` exists → `image-1.jpg`
  */
 export function safeDestPath(mediaDir: string, originalName: string): { destPath: string; safeName: string } {
-  const safeName = sanitize(basename(originalName))
+  const originalExt = extname(originalName)
+  const sanitized = sanitize(basename(originalName))
+  const initialSafeName = sanitized || `media${originalExt}` || 'media.bin'
+
+  let safeName = initialSafeName
   let dest = join(mediaDir, safeName)
   if (!existsSync(dest)) return { destPath: dest, safeName }
 
-  const ext = extname(safeName)
-  const base = basename(safeName, ext)
+  const ext = extname(initialSafeName)
+  const base = basename(initialSafeName, ext) || 'media'
   let counter = 1
   while (existsSync(dest)) {
-    dest = join(mediaDir, `${base}-${counter}${ext}`)
+    safeName = `${base}-${counter}${ext}`
+    dest = join(mediaDir, safeName)
     counter++
   }
   return { destPath: dest, safeName }

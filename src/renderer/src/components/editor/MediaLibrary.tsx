@@ -1,82 +1,124 @@
-import { useState, useEffect, useCallback } from 'react'
+import { AlertTriangle, Image as ImageIcon, Link2, RefreshCw, Upload } from 'lucide-react'
+import type { MediaDto } from '../../../../shared/types/electron-api'
+import { unwrapIpc } from '../../lib/ipc'
 import { useEditorStore } from '../../stores/editor-store'
-import { Upload, Image, AlertTriangle } from 'lucide-react'
 
-export interface MediaViewData {
-  id: string
-  type: string
-  cheminRelatif: string
-  nomOriginal: string
-  checksum: string
-  tailleOctets: number
-  mimeType: string
-  largeur: number | null
-  hauteur: number | null
-  statut: string
+interface MediaLibraryProps {
+  medias: MediaDto[]
+  loading: boolean
+  onRefresh: () => Promise<void>
 }
 
-export function MediaLibrary() {
-  const projectId = useEditorStore((s) => s.projectId)
-  const [medias, setMedias] = useState<MediaViewData[]>([])
-  const [loading, setLoading] = useState(false)
+export function MediaLibrary({ medias, loading, onRefresh }: MediaLibraryProps): JSX.Element {
+  const projectId = useEditorStore((state) => state.projectId)
+  const selectedSceneId = useEditorStore((state) => state.selectedSceneId)
+  const selectedSceneType = useEditorStore((state) =>
+    state.scenes.find((scene) => scene.id === state.selectedSceneId)?.type ?? null
+  )
+  const setSceneMedia = useEditorStore((state) => state.setSceneMedia)
+  const setError = useEditorStore((state) => state.setError)
 
-  const loadMedias = useCallback(async () => {
-    if (!projectId) return
-    setLoading(true)
+  async function handleImport(): Promise<void> {
+    if (!projectId || !window.electronAPI) return
+    const sourcePath = prompt('Chemin complet du fichier à importer :')
+    if (!sourcePath) return
+
+    setError(null)
     try {
-      const result = await window.electronAPI?.mediaList?.(projectId) as { ok: boolean; data: MediaViewData[] } | undefined
-      if (result?.ok) setMedias(result.data)
-    } catch (err) {
-      console.error('Failed to load media library:', err)
-    } finally {
-      setLoading(false)
+      unwrapIpc(await window.electronAPI.mediaImport({ sourcePath, projetId: projectId }))
+      await onRefresh()
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Import média impossible')
     }
-  }, [projectId])
+  }
 
-  useEffect(() => { loadMedias() }, [loadMedias])
-
-  async function handleImport() {
-    if (!projectId) return
-    // In a real app, this opens a file dialog via IPC
-    // For now, use a simple prompt for testing
-    const path = prompt('Chemin complet du fichier à importer :')
-    if (!path) return
+  async function handleAssociate(mediaId: string): Promise<void> {
+    if (!projectId || !selectedSceneId || !window.electronAPI) return
+    setError(null)
     try {
-      const result = await window.electronAPI?.mediaImport?.({ sourcePath: path, projetId: projectId }) as { ok: boolean; data: MediaViewData } | undefined
-      if (result?.ok) {
-        await loadMedias()
-      } else {
-        alert('Import failed')
-      }
-    } catch (err) {
-      console.error('Import error:', err)
+      unwrapIpc(await window.electronAPI.mediaAssociate({
+        sceneId: selectedSceneId,
+        mediaId,
+        projetId: projectId
+      }))
+      setSceneMedia(selectedSceneId, mediaId)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Association média impossible')
+    }
+  }
+
+  async function handleReplace(mediaId: string): Promise<void> {
+    if (!projectId || !window.electronAPI) return
+    const sourcePath = prompt('Chemin complet du fichier de remplacement :')
+    if (!sourcePath) return
+    setError(null)
+    try {
+      unwrapIpc(await window.electronAPI.mediaReplace({ mediaId, projetId: projectId, sourcePath }))
+      await onRefresh()
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Remplacement impossible')
     }
   }
 
   return (
-    <div className="media-library-panel">
+    <section className="media-library-panel" aria-label="Bibliothèque média">
       <div className="media-library-header">
         <span>Médias ({medias.length})</span>
-        <button className="icon-btn" title="Importer un média" onClick={handleImport}>
-          <Upload size={14} />
-        </button>
+        <div className="media-header-actions">
+          <button className="icon-btn" title="Actualiser" onClick={() => void onRefresh()}>
+            <RefreshCw size={14} />
+          </button>
+          <button className="icon-btn" title="Importer un média" onClick={() => void handleImport()}>
+            <Upload size={14} />
+          </button>
+        </div>
       </div>
+
       <div className="media-list">
         {loading && <p className="media-status">Chargement...</p>}
         {!loading && medias.length === 0 && <p className="media-status">Aucun média importé</p>}
-        {medias.map(m => (
-          <div key={m.id} className={`media-card ${m.statut === 'manquante' ? 'missing' : ''}`}>
+        {medias.map((media) => {
+          const canAssociate = selectedSceneType === 'image' && ['image', 'logo'].includes(media.type)
+          return (
+          <article key={media.id} className={`media-card ${media.statut === 'manquante' ? 'missing' : ''}`}>
             <div className="media-thumb">
-              <Image size={32} />
+              {media.previewUrl && media.type === 'image' ? (
+                <img src={media.previewUrl} alt="" />
+              ) : (
+                <ImageIcon size={28} />
+              )}
             </div>
             <div className="media-info">
-              <span className="media-name">{m.nomOriginal}</span>
-              <span className="media-type">{m.type} — {m.mimeType}</span>
-              {m.statut === 'manquante' && <span className="media-missing-badge"><AlertTriangle size={12} /> Manquant</span>}
+              <span className="media-name" title={media.nomOriginal}>{media.nomOriginal}</span>
+              <span className="media-type">{media.type} · {media.mimeType}</span>
+              {media.statut === 'manquante' && (
+                <span className="media-missing-badge"><AlertTriangle size={12} /> Manquant</span>
+              )}
             </div>
-          </div>
-        ))}
+            <div className="media-card-actions">
+              {media.statut === 'manquante' ? (
+                <button className="btn btn-sm" onClick={() => void handleReplace(media.id)}>Remplacer</button>
+              ) : (
+                <button
+                  className="btn btn-sm"
+                  disabled={!selectedSceneId || !canAssociate}
+                  onClick={() => void handleAssociate(media.id)}
+                  title={!selectedSceneId
+                    ? 'Sélectionnez une scène'
+                    : selectedSceneType !== 'image'
+                      ? 'Phase 5 : l’association visuelle est disponible pour les scènes image'
+                      : canAssociate
+                        ? 'Associer à la scène image sélectionnée'
+                        : 'Sélectionnez un média image compatible'}
+                >
+                  <Link2 size={13} /> Associer
+                </button>
+              )}
+            </div>
+          </article>
+          )
+        })}
       </div>
-    </div>
+    </section>
   )
 }

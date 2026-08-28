@@ -45,10 +45,24 @@ describe('Scene (domain invariants)', () => {
   })
 
   it('allows all valid scene types', () => {
-    for (const type of ['texte', 'formule', 'image', 'code'] as const) {
+    for (const type of ['texte', 'formule', 'image', 'code', 'diagramme'] as const) {
       const scene = Scene.create({ projetId, ordre: 1, type })
       expect(scene.type).toBe(type)
     }
+  })
+
+
+  it('validates Phase 5 composition and transition settings', () => {
+    const scene = Scene.create({
+      projetId,
+      ordre: 1,
+      type: 'texte',
+      composition: { backgroundColor: '#112233', layout: 'top' },
+      transition: { type: 'slide-left', durationMs: 450 }
+    })
+    expect(scene.composition.layout).toBe('top')
+    expect(scene.transition.type).toBe('slide-left')
+    expect(() => scene.update({ transition: { type: 'fade', durationMs: -1 } })).toThrow()
   })
 
   it('update preserves unchanged fields and increments version', () => {

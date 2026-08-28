@@ -1,47 +1,52 @@
 import { useEffect, useRef } from 'react'
+import { unwrapIpc } from '../../lib/ipc'
 import { useEditorStore } from '../../stores/editor-store'
 
 /**
- * AutoSave: debounces Zustand scene changes and persists them via IPC to SQLite.
- * SQLite remains the source of truth; Zustand is only transient UI state.
+ * Debounced persistence of transient editor state.
+ * SQLite remains the source of truth.
  */
-export function AutoSave() {
-  const isDirty = useEditorStore((s) => s.isDirty)
-  const scenes = useEditorStore((s) => s.scenes)
-  const projectId = useEditorStore((s) => s.projectId)
-  const setDirty = useEditorStore((s) => s.setDirty)
-  const setError = useEditorStore((s) => s.setError)
+export function AutoSave(): null {
+  const isDirty = useEditorStore((state) => state.isDirty)
+  const scenes = useEditorStore((state) => state.scenes)
+  const projectId = useEditorStore((state) => state.projectId)
+  const setDirty = useEditorStore((state) => state.setDirty)
+  const setError = useEditorStore((state) => state.setError)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (!isDirty || !projectId) return
-
     if (timerRef.current) clearTimeout(timerRef.current)
 
     timerRef.current = setTimeout(async () => {
       try {
-        // Reorder: persist the entire scene list order
         const api = window.electronAPI
-        if (!api) return
+        if (!api) throw new Error('Preload API unavailable')
 
-        await api.scenesReorder?.({ projetId: projectId, orderedIds: scenes.map((s) => s.id) })
+        unwrapIpc(await api.scenesReorder({
+          projetId: projectId,
+          orderedIds: scenes.map((scene) => scene.id)
+        }))
 
-        // Update each scene's properties
         for (const scene of scenes) {
-          await api.scenesUpdate?.({
+          unwrapIpc(await api.scenesUpdate({
             sceneId: scene.id,
             projetId: projectId,
             titre: scene.titre,
             narrationTexte: scene.narrationTexte,
             texteAffiche: scene.texteAffiche,
-            dureeMs: scene.dureeMs
-          })
+            dureeMs: scene.dureeMs,
+            composition: scene.composition,
+            transition: scene.transition
+          }))
         }
+
+        setError(null)
         setDirty(false)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'AutoSave failed')
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'AutoSave failed')
       }
-    }, 1500) // 1.5s debounce
+    }, 1500)
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)

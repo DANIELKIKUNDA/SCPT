@@ -66,3 +66,21 @@ describe('Security configuration in src/main/index.ts', () => {
     expect(rendererWindow.process).toBeUndefined()
   })
 })
+describe('Phase 5 preview CSP', () => {
+  const cspPath = resolve(__dirname, 'csp.ts')
+  let source = ''
+  try {
+    source = readFileSync(cspPath, 'utf-8')
+  } catch {
+    // assertion below will fail with a useful signal
+  }
+
+  it('keeps production scripts free of unsafe-eval', () => {
+    expect(source).not.toContain("'unsafe-eval'")
+  })
+
+  it('allows only the dedicated SCPT media scheme for local preview images', () => {
+    expect(source).toContain('scpt-media:')
+    expect(source).toContain("worker-src 'self' blob:")
+  })
+})

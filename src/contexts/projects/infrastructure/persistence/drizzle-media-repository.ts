@@ -65,7 +65,7 @@ function rowToMedia(row: MediaRow): RessourceMedia {
   })
 }
 
-export function createDrizzleMediaRepository(dbPath: string): RessourceMediaRepository {
+export function createDrizzleMediaRepository(dbPath: string): RessourceMediaRepository & { close: () => void } {
   const db = new Database(dbPath)
   db.pragma('journal_mode = WAL')
 
@@ -118,6 +118,9 @@ export function createDrizzleMediaRepository(dbPath: string): RessourceMediaRepo
     },
     async delete(id: RessourceMediaId): Promise<void> {
       deleteStmt.run(id.value)
+    },
+    close(): void {
+      db.close()
     }
   }
 }

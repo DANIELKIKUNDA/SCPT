@@ -2,7 +2,8 @@ export const SCENE_TYPES = [
   'texte',
   'formule',
   'image',
-  'code'
+  'code',
+  'diagramme'
 ] as const
 
 export type SceneType = (typeof SCENE_TYPES)[number]

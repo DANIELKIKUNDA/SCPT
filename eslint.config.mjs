@@ -9,7 +9,7 @@ export default tseslint.config(
   },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
-    files: ['src/**/*.{ts,tsx}'],
+    files: ['src/**/*.{ts,tsx}', 'vitest.setup.ts'],
     plugins: {
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh

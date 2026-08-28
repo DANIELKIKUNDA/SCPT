@@ -4,7 +4,13 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // file-type, music-metadata and execa are ESM-only ("type": "module") packages.
+    // Leaving them externalized emits require("<pkg>") in the CJS main bundle,
+    // which crashes at Electron startup (ERR_PACKAGE_PATH_NOT_EXPORTED / ERR_REQUIRE_ESM).
+    // Bundling these pure-JS packages avoids the CJS/ESM interop failure.
+    // Phase 6 adds p-queue/p-limit; both are ESM-only and run in main narration orchestration.
+    // Bundling them with execa keeps the Electron CJS main runtime compatible.
+    plugins: [externalizeDepsPlugin({ exclude: ['file-type', 'music-metadata', 'execa', 'p-queue', 'p-limit'] })],
     build: {
       outDir: 'out/main',
       rollupOptions: {

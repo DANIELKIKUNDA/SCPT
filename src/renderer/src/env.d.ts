@@ -1,28 +1,34 @@
 /// <reference types="vite/client" />
 
-interface ElectronAPI {
-  systemPing: () => Promise<unknown>
-  systemGetAppInfo: () => Promise<unknown>
-  preferencesGet: (key: string) => Promise<unknown>
-  preferencesSet: (data: Record<string, unknown>) => Promise<unknown>
-  projectsCreate: (input: Record<string, unknown>) => Promise<unknown>
-  projectsOpen: (projectId: string) => Promise<unknown>
-  projectsClose: (projectId: string) => Promise<unknown>
-  projectsListRecent: () => Promise<unknown>
-  projectsArchive: (projectId: string) => Promise<unknown>
-  projectsRestore: (projectId: string) => Promise<unknown>
-  scenesLoadSequence: (projectId: string) => Promise<unknown>
-  scenesCreate: () => Promise<unknown>
-  scenesUpdate: (input: { sceneId: string; projetId: string; titre?: string | null; narrationTexte?: string | null; texteAffiche?: string | null; dureeMs?: number }) => Promise<unknown>
-  scenesDelete: (input: { sceneId: string; projetId: string }) => Promise<unknown>
-  scenesDuplicate: (input: { sceneId: string; projetId: string }) => Promise<unknown>
-  scenesReorder: (input: { projetId: string; orderedIds: string[] }) => Promise<unknown>
-  mediaImport: (input: { sourcePath: string; projetId: string }) => Promise<unknown>
-  mediaList: (projetId: string) => Promise<unknown>
-  mediaMarkMissing: (input: { mediaId: string; projetId: string }) => Promise<unknown>
-  mediaReplace: (input: { mediaId: string; projetId: string; sourcePath: string }) => Promise<unknown>
+declare module '*?worker' {
+  const WorkerFactory: new () => Worker
+  export default WorkerFactory
+}
+
+declare module 'monaco-editor/esm/vs/editor/editor.main.js' {
+  export * from 'monaco-editor/esm/vs/editor/editor.api'
+}
+
+declare module 'react-katex' {
+  import type { FC, ReactNode } from 'react'
+  export const InlineMath: FC<{ math: string; renderError?: (error: Error) => ReactNode }>
+  export const BlockMath: FC<{ math: string; renderError?: (error: Error) => ReactNode }>
+}
+
+declare module 'katex' {
+  const katex: {
+    renderToString(tex: string, options?: Record<string, unknown>): string
+    render(tex: string, element: HTMLElement, options?: Record<string, unknown>): void
+    version: string
+  }
+  export default katex
+  export const renderToString: typeof katex.renderToString
+  export const render: typeof katex.render
 }
 
 interface Window {
-  electronAPI?: ElectronAPI
+  electronAPI?: import('../../shared/types/electron-api').ElectronAPI
+  MonacoEnvironment?: {
+    getWorker: (_moduleId: string, label: string) => Worker
+  }
 }

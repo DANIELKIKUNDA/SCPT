@@ -6,6 +6,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import { existsSync, unlinkSync } from 'fs'
 import { ulid } from 'ulid'
+import Database from 'better-sqlite3'
 
 function uniqueDbPath() {
   return join(tmpdir(), `scpt-scene-test-${ulid()}.sqlite`)
@@ -111,6 +112,76 @@ describe('DrizzleSceneRepository (real SQLite)', () => {
     const sequence = await repo.loadSequence(projetId)
     expect(sequence[0].titre).toBe('A') // unchanged
     expect(sequence[1].titre).toBe('B') // unchanged
+  })
+
+
+
+  it('migrates the Phase 3 scene CHECK constraint to include diagramme without losing data', async () => {
+    const raw = new Database(dbPath)
+    raw.exec(`
+      CREATE TABLE scenes (
+        id TEXT PRIMARY KEY NOT NULL,
+        projet_id TEXT NOT NULL,
+        ordre INTEGER NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('texte','formule','image','code')),
+        titre TEXT,
+        narration_texte TEXT,
+        texte_affiche TEXT,
+        duree_ms INTEGER NOT NULL DEFAULT 5000,
+        composition_json TEXT NOT NULL DEFAULT '{}',
+        transition_json TEXT NOT NULL DEFAULT '{}',
+        version INTEGER NOT NULL DEFAULT 1
+      );
+      CREATE UNIQUE INDEX idx_scenes_projet_ordre ON scenes(projet_id, ordre);
+    `)
+    const legacyId = ulid()
+    raw.prepare(`
+      INSERT INTO scenes (
+        id, projet_id, ordre, type, titre, narration_texte, texte_affiche,
+        duree_ms, composition_json, transition_json, version
+      ) VALUES (?, ?, 1, 'texte', 'Legacy', NULL, 'Bonjour', 5000, ?, ?, 1)
+    `).run(
+      legacyId,
+      projetId.value,
+      JSON.stringify({ backgroundColor: '#1e1e2e', layout: 'centered' }),
+      JSON.stringify({ type: 'fade', durationMs: 300 })
+    )
+    raw.close()
+
+    const repo = createDrizzleSceneRepository(dbPath)
+    const legacy = await repo.loadSequence(projetId)
+    expect(legacy).toHaveLength(1)
+    expect(legacy[0].titre).toBe('Legacy')
+    expect(await repo.getMediaId(legacy[0].id)).toBeNull()
+
+    const diagram = Scene.create({ projetId, ordre: 2, type: 'diagramme', titre: 'Graphique' })
+    await repo.save(diagram)
+    expect((await repo.findById(diagram.id))?.type).toBe('diagramme')
+  })
+
+  it('persists Phase 5 diagramme scenes', async () => {
+    const repo = createDrizzleSceneRepository(dbPath)
+    const diagram = Scene.create({
+      projetId,
+      ordre: 1,
+      type: 'diagramme',
+      titre: 'Progression',
+      texteAffiche: 'A: 1\nB: 2'
+    })
+    await repo.save(diagram)
+    const found = await repo.findById(diagram.id)
+    expect(found?.type).toBe('diagramme')
+  })
+
+  it('preserves media association when autosave updates scene fields', async () => {
+    const repo = createDrizzleSceneRepository(dbPath)
+    const scene = Scene.create({ projetId, ordre: 1, type: 'image', titre: 'Avant' })
+    await repo.save(scene)
+    await repo.associateMedia(scene.id, '01ARZ3NDEKTSV4RRFFQ69G5FAV')
+
+    await repo.save(scene.update({ titre: 'Après' }))
+
+    expect(await repo.getMediaId(scene.id)).toBe('01ARZ3NDEKTSV4RRFFQ69G5FAV')
   })
 
   it('closes and reopens preserving data', async () => {

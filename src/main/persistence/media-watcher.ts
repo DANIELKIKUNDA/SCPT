@@ -10,9 +10,9 @@ import { getProjectMediaDir } from './media-filesystem'
 
 export class MediaWatcher {
   private watchers = new Map<string, FSWatcher>()
-  private onMissing: (cheminRelatif: string) => void
+  private onMissing: (projectId: string, cheminRelatif: string) => void | Promise<void>
 
-  constructor(onMissing: (cheminRelatif: string) => void) {
+  constructor(onMissing: (projectId: string, cheminRelatif: string) => void | Promise<void>) {
     this.onMissing = onMissing
   }
 
@@ -32,7 +32,7 @@ export class MediaWatcher {
     watcher.on('unlink', (filePath: string) => {
       // Extract relative path to notify
       const relPath = 'media/source/' + filePath.split(/[\\/]/).pop()
-      this.onMissing(relPath)
+      void this.onMissing(projectId, relPath)
     })
 
     this.watchers.set(projectId, watcher)

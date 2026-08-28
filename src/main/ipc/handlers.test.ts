@@ -63,6 +63,67 @@ vi.mock('../persistence/lock-manager', () => ({
   }
 }))
 
+// Persistence and filesystem boundaries are mocked with in-memory implementations.
+// This unit suite exercises IPC wiring (Phase 1 + Phase 2) only. Using the real
+// better-sqlite3 factory here would open an unclosed native Database for the
+// catalog (and the media DB + chokidar watcher on open), which crashes the Vitest
+// worker teardown (`RemoveEnvironmentCleanupHook` native assertion).
+vi.mock('../../contexts/projects/infrastructure/persistence/drizzle-project-repository', () => {
+  const projects = new Map<string, unknown>()
+
+  const keyOf = (value: unknown): string => {
+    if (value && typeof value === 'object') {
+      if ('value' in value) return String((value as { value: string }).value)
+      if ('id' in value) return (value as { id: { value: string } }).id.value
+    }
+    return ''
+  }
+
+  return {
+    createSqliteProjectRepository: () => ({
+      save: async (projet: unknown): Promise<void> => {
+        projects.set(keyOf(projet), projet)
+      },
+      findById: async (id: unknown): Promise<unknown> => projects.get(keyOf(id)) ?? null,
+      findAll: async (): Promise<unknown[]> => [...projects.values()],
+      findRecent: async (): Promise<unknown[]> =>
+        [...projects.values()].filter((p) => (p as { statut: string }).statut !== 'ARCHIVE'),
+      findArchived: async (): Promise<unknown[]> =>
+        [...projects.values()].filter((p) => (p as { statut: string }).statut === 'ARCHIVE'),
+      delete: async (id: unknown): Promise<void> => {
+        projects.delete(keyOf(id))
+      }
+    })
+  }
+})
+
+vi.mock('../persistence/project-manifest', () => ({
+  getProjectManifestService: () => ({
+    getDatabasePath: (): string => ':memory:',
+    getProjectDir: (): string => '/mock/project/'
+  })
+}))
+
+vi.mock('../persistence/media-watcher', () => ({
+  MediaWatcher: class {
+    startWatching(): void {}
+    stopWatching(): void {}
+    stopAll(): void {}
+  },
+  verifyMediaFiles: (): string[] => []
+}))
+
+vi.mock('../../contexts/projects/infrastructure/persistence/drizzle-media-repository', () => ({
+  createDrizzleMediaRepository: () => ({
+    findAll: async (): Promise<unknown[]> => [],
+    findById: async (): Promise<unknown> => null,
+    findByChecksum: async (): Promise<unknown> => null,
+    save: async (): Promise<void> => {},
+    delete: async (): Promise<void> => {},
+    close: (): void => {}
+  })
+}))
+
 import { registerIpcHandlers } from './handlers'
 import { ipcMain } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc/channels'
