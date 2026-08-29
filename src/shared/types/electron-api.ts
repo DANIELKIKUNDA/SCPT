@@ -95,6 +95,117 @@ export interface NarrationTrackDto {
   versionTexte: number
 }
 
+
+export type SubtitleTrackStatusDto = 'brouillon' | 'a_resynchroniser' | 'validee' | 'obsolete'
+export type SubtitlePositionDto = 'haut' | 'centre' | 'bas'
+
+export interface SubtitleStyleDto {
+  fontSize?: number
+  color?: string
+  backgroundColor?: string
+  fontWeight?: 'normal' | 'bold'
+}
+
+export interface SubtitleSegmentDto {
+  id: string
+  ordre: number
+  debutMs: number
+  finMs: number
+  texte: string
+  position: SubtitlePositionDto
+  style?: SubtitleStyleDto
+}
+
+export interface SubtitleTrackDto {
+  id: string
+  declinaisonId: string
+  langue: string
+  segments: SubtitleSegmentDto[]
+  statut: SubtitleTrackStatusDto
+  versionNarration: number
+}
+
+export interface SubtitleExportDto {
+  canceled: boolean
+  format: 'srt' | 'vtt'
+  fileName?: string
+  relativeProjectPath?: string
+}
+
+
+
+export type DeclinaisonFormatDto = 'HORIZONTAL_16_9' | 'VERTICAL_9_16' | 'CARRE_1_1'
+export type DeclinaisonStatusDto = 'brouillon' | 'adaptation_en_cours' | 'en_revision' | 'valide' | 'obsolete' | 'pret_pour_rendu'
+
+export interface DeclinaisonResolutionDto {
+  width: number
+  height: number
+}
+
+export interface DeclinaisonSafeZoneDto {
+  left: number
+  right: number
+  top: number
+  bottom: number
+}
+
+export interface DeclinaisonSceneOverrideDto {
+  sceneId: string
+  layout?: SceneLayoutDto
+  backgroundColor?: string
+}
+
+export interface DeclinaisonDto {
+  id: string
+  projectId: string
+  format: DeclinaisonFormatDto
+  resolution: DeclinaisonResolutionDto
+  langue: string
+  profilExport: 'MVP_PREMIUM'
+  statut: DeclinaisonStatusDto
+  versionProjetSource: number
+  versionSourceCourante: number
+  version: number
+  obsolete: boolean
+  pretPourRendu: boolean
+  safeZone: DeclinaisonSafeZoneDto
+  overrides: DeclinaisonSceneOverrideDto[]
+}
+
+
+export type RenderJobStatusDto =
+  | 'demande'
+  | 'en_attente'
+  | 'en_preparation'
+  | 'en_composition'
+  | 'en_encodage'
+  | 'en_verification'
+  | 'termine'
+  | 'echoue'
+  | 'annule'
+
+export interface RenderJobDto {
+  id: string
+  projectId: string
+  declinaisonId: string
+  tentative: number
+  statut: RenderJobStatusDto
+  progression: number
+  cheminFichier: string | null
+  checksum: string | null
+  diagnostic: string | null
+  profil: 'MVP_PREMIUM'
+  versionProjetSource: number
+  versionDeclinaisonSource: number
+  createdAt: string
+  updatedAt: string
+  startedAt: string | null
+  finishedAt: string | null
+  actif: boolean
+  peutRelancer: boolean
+  logRelativePath: string
+}
+
 export interface ElectronAPI {
   systemPing: () => Promise<IpcResult<{ message: 'pong'; timestamp: number }>>
   systemGetAppInfo: () => Promise<IpcResult<{
@@ -170,4 +281,49 @@ export interface ElectronAPI {
   narrationSelectFinal: (input: { projectId: string; takeId: string }) => Promise<IpcResult<NarrationTrackDto>>
   narrationReadAudio: (input: { projectId: string; takeId: string }) => Promise<IpcResult<{ base64: string; mimeType: string }>>
   narrationCancel: (projectId: string) => Promise<IpcResult<{ canceled: boolean }>>
+  subtitlesGet: (input: { projectId: string; langue: string }) => Promise<IpcResult<SubtitleTrackDto>>
+  subtitlesSynchronize: (input: { projectId: string; langue: string }) => Promise<IpcResult<SubtitleTrackDto>>
+  subtitlesUpdateSegment: (input: {
+    projectId: string
+    segmentId: string
+    debutMs?: number
+    finMs?: number
+    texte?: string
+    position?: SubtitlePositionDto
+    style?: SubtitleStyleDto
+  }) => Promise<IpcResult<SubtitleTrackDto>>
+  subtitlesAddSegment: (input: {
+    projectId: string
+    debutMs: number
+    finMs: number
+    texte: string
+    position: SubtitlePositionDto
+    style?: SubtitleStyleDto
+  }) => Promise<IpcResult<SubtitleTrackDto>>
+  subtitlesDeleteSegment: (input: { projectId: string; segmentId: string }) => Promise<IpcResult<SubtitleTrackDto>>
+  subtitlesValidate: (projectId: string) => Promise<IpcResult<SubtitleTrackDto>>
+  subtitlesExport: (input: { projectId: string; format: 'srt' | 'vtt' }) => Promise<IpcResult<SubtitleExportDto>>
+
+  declinaisonsList: (projectId: string) => Promise<IpcResult<DeclinaisonDto[]>>
+  declinaisonsCreate: (input: {
+    projectId: string
+    format: DeclinaisonFormatDto
+    langue: string
+    profilExport?: 'MVP_PREMIUM'
+  }) => Promise<IpcResult<DeclinaisonDto>>
+  declinaisonsSetOverride: (input: {
+    projectId: string
+    declinaisonId: string
+    sceneId: string
+    layout?: SceneLayoutDto
+    backgroundColor?: string
+  }) => Promise<IpcResult<DeclinaisonDto>>
+  declinaisonsRemoveOverride: (input: { projectId: string; declinaisonId: string; sceneId: string }) => Promise<IpcResult<DeclinaisonDto>>
+  declinaisonsValidate: (input: { projectId: string; declinaisonId: string }) => Promise<IpcResult<DeclinaisonDto>>
+  declinaisonsMarkReady: (input: { projectId: string; declinaisonId: string }) => Promise<IpcResult<DeclinaisonDto>>
+  renderList: (projectId: string) => Promise<IpcResult<RenderJobDto[]>>
+  renderStart: (input: { projectId: string; declinaisonId: string }) => Promise<IpcResult<RenderJobDto>>
+  renderCancel: (input: { projectId: string; jobId: string }) => Promise<IpcResult<{ canceled: boolean }>>
+  renderRetry: (input: { projectId: string; jobId: string }) => Promise<IpcResult<RenderJobDto>>
+  renderReadLog: (input: { projectId: string; jobId: string }) => Promise<IpcResult<{ content: string }>>
 }

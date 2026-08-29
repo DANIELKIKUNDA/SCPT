@@ -29,7 +29,25 @@ const electronAPI: ElectronAPI = {
   narrationImport: (input) => ipcRenderer.invoke(IPC_CHANNELS.NARRATION_IMPORT, input),
   narrationSelectFinal: (input) => ipcRenderer.invoke(IPC_CHANNELS.NARRATION_SELECT_FINAL, input),
   narrationReadAudio: (input) => ipcRenderer.invoke(IPC_CHANNELS.NARRATION_READ_AUDIO, input),
-  narrationCancel: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.NARRATION_CANCEL, projectId)
+  narrationCancel: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.NARRATION_CANCEL, projectId),
+  subtitlesGet: (input) => ipcRenderer.invoke(IPC_CHANNELS.SUBTITLES_GET, input),
+  subtitlesSynchronize: (input) => ipcRenderer.invoke(IPC_CHANNELS.SUBTITLES_SYNCHRONIZE, input),
+  subtitlesUpdateSegment: (input) => ipcRenderer.invoke(IPC_CHANNELS.SUBTITLES_UPDATE_SEGMENT, input),
+  subtitlesAddSegment: (input) => ipcRenderer.invoke(IPC_CHANNELS.SUBTITLES_ADD_SEGMENT, input),
+  subtitlesDeleteSegment: (input) => ipcRenderer.invoke(IPC_CHANNELS.SUBTITLES_DELETE_SEGMENT, input),
+  subtitlesValidate: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.SUBTITLES_VALIDATE, projectId),
+  subtitlesExport: (input) => ipcRenderer.invoke(IPC_CHANNELS.SUBTITLES_EXPORT, input),
+  declinaisonsList: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.DECLINAISONS_LIST, projectId),
+  declinaisonsCreate: (input) => ipcRenderer.invoke(IPC_CHANNELS.DECLINAISONS_CREATE, input),
+  declinaisonsSetOverride: (input) => ipcRenderer.invoke(IPC_CHANNELS.DECLINAISONS_SET_OVERRIDE, input),
+  declinaisonsRemoveOverride: (input) => ipcRenderer.invoke(IPC_CHANNELS.DECLINAISONS_REMOVE_OVERRIDE, input),
+  declinaisonsValidate: (input) => ipcRenderer.invoke(IPC_CHANNELS.DECLINAISONS_VALIDATE, input),
+  declinaisonsMarkReady: (input) => ipcRenderer.invoke(IPC_CHANNELS.DECLINAISONS_MARK_READY, input),
+  renderList: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.RENDER_LIST, projectId),
+  renderStart: (input) => ipcRenderer.invoke(IPC_CHANNELS.RENDER_START, input),
+  renderCancel: (input) => ipcRenderer.invoke(IPC_CHANNELS.RENDER_CANCEL, input),
+  renderRetry: (input) => ipcRenderer.invoke(IPC_CHANNELS.RENDER_RETRY, input),
+  renderReadLog: (input) => ipcRenderer.invoke(IPC_CHANNELS.RENDER_READ_LOG, input)
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

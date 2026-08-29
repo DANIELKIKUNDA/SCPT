@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ChevronLeft, Save, Undo2 } from 'lucide-react'
-import type { MediaDto, ProjectDto } from '../../../../shared/types/electron-api'
+import type { DeclinaisonDto, MediaDto, ProjectDto, SubtitleTrackDto } from '../../../../shared/types/electron-api'
 import { unwrapIpc } from '../../lib/ipc'
 import { useEditorStore } from '../../stores/editor-store'
 import { AutoSave } from './AutoSave'
@@ -9,6 +9,9 @@ import { SceneList } from './SceneList'
 import { SceneProperties } from './SceneProperties'
 import { PreviewPanel } from '../preview/PreviewPanel'
 import { NarrationPanel } from '../narration/NarrationPanel'
+import { SubtitlePanel } from '../subtitles/SubtitlePanel'
+import { DeclinationPanel } from '../declinaisons/DeclinationPanel'
+import { RenderingPanel } from '../rendering/RenderingPanel'
 
 interface EditorWorkspaceProps {
   project: ProjectDto
@@ -20,7 +23,12 @@ interface EditorWorkspaceProps {
 export function EditorWorkspace({ project, reduceMotion, onClose, onSave }: EditorWorkspaceProps): JSX.Element {
   const [medias, setMedias] = useState<MediaDto[]>([])
   const [mediaLoading, setMediaLoading] = useState(false)
-  const [bottomTab, setBottomTab] = useState<'media' | 'narration'>('narration')
+  const [subtitleTrack, setSubtitleTrack] = useState<SubtitleTrackDto | null>(null)
+  const [showSubtitles, setShowSubtitles] = useState(true)
+  const [declinaisons, setDeclinaisons] = useState<DeclinaisonDto[]>([])
+  const [selectedDeclinaisonId, setSelectedDeclinaisonId] = useState<string | null>(null)
+  const [sourceRevision, setSourceRevision] = useState(0)
+  const [bottomTab, setBottomTab] = useState<'media' | 'narration' | 'subtitles' | 'declinaisons' | 'rendering'>('narration')
   const isDirty = useEditorStore((state) => state.isDirty)
   const error = useEditorStore((state) => state.error)
   const undo = useEditorStore((state) => state.undo)
@@ -40,9 +48,61 @@ export function EditorWorkspace({ project, reduceMotion, onClose, onSave }: Edit
     }
   }, [project.id, setError])
 
+  const loadSubtitles = useCallback(async (): Promise<void> => {
+    const api = window.electronAPI
+    if (!api) return
+    try {
+      setSubtitleTrack(unwrapIpc(await api.subtitlesGet({ projectId: project.id, langue: project.langueSource })))
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Sous-titres indisponibles')
+    }
+  }, [project.id, project.langueSource, setError])
+
+  const loadDeclinaisons = useCallback(async (): Promise<void> => {
+    const api = window.electronAPI
+    if (!api) return
+    try {
+      const items = unwrapIpc(await api.declinaisonsList(project.id))
+      setDeclinaisons(items)
+      setSelectedDeclinaisonId((current) => {
+        if (current && items.some((item) => item.id === current && !item.obsolete)) return current
+        return items.find((item) => !item.obsolete)?.id ?? null
+      })
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Déclinaisons indisponibles')
+    }
+  }, [project.id, setError])
+
   useEffect(() => {
     void loadMedias()
-  }, [loadMedias])
+    void loadSubtitles()
+    void loadDeclinaisons()
+  }, [loadDeclinaisons, loadMedias, loadSubtitles])
+
+  const handleNarrationTrackChange = useCallback((): void => {
+    void loadSubtitles()
+    setSourceRevision((value) => value + 1)
+  }, [loadSubtitles])
+
+  const handleSubtitleTrackChange = useCallback((track: SubtitleTrackDto): void => {
+    setSubtitleTrack(track)
+    setSourceRevision((value) => value + 1)
+  }, [])
+
+  const handleDeclinaisonChanged = useCallback((updated: DeclinaisonDto): void => {
+    setDeclinaisons((current) => {
+      const without = current.filter((item) => item.id !== updated.id)
+      return [...without, updated]
+    })
+  }, [])
+
+  const selectedDeclinaison = declinaisons.find((item) => item.id === selectedDeclinaisonId && !item.obsolete) ?? null
+
+  useEffect(() => {
+    if (bottomTab !== 'declinaisons') return
+    const timer = window.setTimeout(() => { void loadDeclinaisons() }, 1850)
+    return () => window.clearTimeout(timer)
+  }, [bottomTab, loadDeclinaisons, scenes, sourceRevision])
 
   return (
     <div className="editor-workspace">
@@ -85,7 +145,7 @@ export function EditorWorkspace({ project, reduceMotion, onClose, onSave }: Edit
 
       <main className="editor-layout">
         <aside className="editor-left"><SceneList /></aside>
-        <section className="editor-center"><PreviewPanel medias={medias} reduceMotion={reduceMotion} /></section>
+        <section className="editor-center"><PreviewPanel medias={medias} reduceMotion={reduceMotion} subtitles={subtitleTrack} showSubtitles={showSubtitles} declination={selectedDeclinaison} /></section>
         <aside className="editor-right"><SceneProperties /></aside>
         <section className="editor-bottom">
           <div className="editor-bottom-tabs" role="tablist" aria-label="Outils du projet">
@@ -96,15 +156,55 @@ export function EditorWorkspace({ project, reduceMotion, onClose, onSave }: Edit
               aria-selected={bottomTab === 'narration'}
             >Narration</button>
             <button
+              className={bottomTab === 'subtitles' ? 'active' : ''}
+              onClick={() => setBottomTab('subtitles')}
+              role="tab"
+              aria-selected={bottomTab === 'subtitles'}
+            >Sous-titres</button>
+            <button
               className={bottomTab === 'media' ? 'active' : ''}
               onClick={() => setBottomTab('media')}
               role="tab"
               aria-selected={bottomTab === 'media'}
             >Médias</button>
+            <button
+              className={bottomTab === 'declinaisons' ? 'active' : ''}
+              onClick={() => setBottomTab('declinaisons')}
+              role="tab"
+              aria-selected={bottomTab === 'declinaisons'}
+            >Formats</button>
+            <button
+              className={bottomTab === 'rendering' ? 'active' : ''}
+              onClick={() => setBottomTab('rendering')}
+              role="tab"
+              aria-selected={bottomTab === 'rendering'}
+            >Rendus</button>
           </div>
           <div className="editor-bottom-content">
             {bottomTab === 'narration' ? (
-              <NarrationPanel project={project} scenes={scenes} />
+              <NarrationPanel project={project} scenes={scenes} onTrackChange={handleNarrationTrackChange} />
+            ) : bottomTab === 'subtitles' ? (
+              <SubtitlePanel
+                project={project}
+                scenes={scenes}
+                track={subtitleTrack}
+                showInPreview={showSubtitles}
+                onShowInPreviewChange={setShowSubtitles}
+                onTrackChange={handleSubtitleTrackChange}
+              />
+            ) : bottomTab === 'declinaisons' ? (
+              <DeclinationPanel
+                project={project}
+                scenes={scenes}
+                declinaisons={declinaisons}
+                selectedId={selectedDeclinaisonId}
+                onSelect={(value) => setSelectedDeclinaisonId(value?.id ?? null)}
+                onRefresh={loadDeclinaisons}
+                onChanged={handleDeclinaisonChanged}
+                sourceDirty={isDirty}
+              />
+            ) : bottomTab === 'rendering' ? (
+              <RenderingPanel project={project} declinaisons={declinaisons} />
             ) : (
               <MediaLibrary medias={medias} loading={mediaLoading} onRefresh={loadMedias} />
             )}

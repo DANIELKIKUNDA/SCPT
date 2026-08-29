@@ -1,0 +1,52 @@
+SCPT — PHASE 8 PATCH MANIFEST
+Scope: Déclinaisons multi-format only
+Baseline: Phase 7 implemented source, Windows-validated 200/200
+No file deletion. No package.json change. No Phase 9/10 dependency.
+Files added/modified by patch: 46
+
+docs/reports/phase8-implementation-report.md
+src/contexts/projects/application/ports/project-source-version.port.ts
+src/contexts/projects/application/use-cases/declinaisons/__tests__/declinaison-use-cases.test.ts
+src/contexts/projects/application/use-cases/declinaisons/create-declinaison.use-case.ts
+src/contexts/projects/application/use-cases/declinaisons/list-declinaisons.use-case.ts
+src/contexts/projects/application/use-cases/declinaisons/mark-declinaison-ready.use-case.ts
+src/contexts/projects/application/use-cases/declinaisons/remove-declinaison-override.use-case.ts
+src/contexts/projects/application/use-cases/declinaisons/set-declinaison-override.use-case.ts
+src/contexts/projects/application/use-cases/declinaisons/validate-declinaison.use-case.ts
+src/contexts/projects/domain/aggregates/__tests__/declinaison-audiovisuelle.test.ts
+src/contexts/projects/domain/aggregates/declinaison-audiovisuelle.ts
+src/contexts/projects/domain/repositories/declinaison-audiovisuelle.repository.ts
+src/contexts/projects/domain/value-objects/__tests__/phase8-video-value-objects.test.ts
+src/contexts/projects/domain/value-objects/format-video.ts
+src/contexts/projects/domain/value-objects/profil-export.ts
+src/contexts/projects/domain/value-objects/resolution-video.ts
+src/contexts/projects/infrastructure/persistence/__tests__/drizzle-declinaison-repository.test.ts
+src/contexts/projects/infrastructure/persistence/__tests__/project-source-snapshot.test.ts
+src/contexts/projects/infrastructure/persistence/drizzle-declinaison-repository.ts
+src/contexts/projects/infrastructure/persistence/project-source-snapshot.ts
+src/contexts/projects/infrastructure/persistence/project-source-version-adapter.ts
+src/main/ipc/handlers.ts
+src/preload/index.ts
+src/remotion/Root.tsx
+src/remotion/components/SafeZoneOverlay.tsx
+src/remotion/components/SceneShell.tsx
+src/remotion/components/SubtitleOverlay.tsx
+src/remotion/components/__tests__/SubtitleOverlay.test.tsx
+src/remotion/compositions/ProjectComposition.tsx
+src/remotion/scenes/CodeScene.tsx
+src/remotion/scenes/DiagramScene.tsx
+src/remotion/scenes/FormulaScene.tsx
+src/remotion/scenes/ImageScene.tsx
+src/remotion/scenes/SceneRenderer.tsx
+src/remotion/scenes/TextScene.tsx
+src/remotion/types/preview-types.ts
+src/remotion/utils/__tests__/declination-layout.test.ts
+src/remotion/utils/declination-layout.ts
+src/renderer/src/__tests__/phase8-composition.test.tsx
+src/renderer/src/components/declinaisons/DeclinationPanel.tsx
+src/renderer/src/components/editor/EditorWorkspace.tsx
+src/renderer/src/components/preview/PreviewPanel.tsx
+src/renderer/src/styles.css
+src/shared/ipc/channels.ts
+src/shared/types/electron-api.ts
+PHASE8_PATCH_MANIFEST.txt

@@ -76,7 +76,14 @@ export class ProjectManifestService {
       join(projectDir, 'media', 'derived'),
       join(projectDir, 'audio', 'narration'),
       join(projectDir, 'audio', 'music'),
-      join(projectDir, 'audio', 'temp')
+      join(projectDir, 'audio', 'temp'),
+      join(projectDir, 'subtitles'),
+      join(projectDir, 'renders', 'previews'),
+      join(projectDir, 'renders', 'final'),
+      join(projectDir, 'renders', 'failed'),
+      join(projectDir, 'logs'),
+      join(projectDir, 'backups'),
+      join(projectDir, 'temp', 'rendering')
     ]
     for (const directory of requiredDirs) {
       if (!existsSync(directory)) mkdirSync(directory, { recursive: true })

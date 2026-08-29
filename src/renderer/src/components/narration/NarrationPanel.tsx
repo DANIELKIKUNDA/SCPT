@@ -7,6 +7,7 @@ import { NarrationWaveform } from './NarrationWaveform'
 interface NarrationPanelProps {
   project: ProjectDto
   scenes: SceneDto[]
+  onTrackChange?: (track: NarrationTrackDto) => void
 }
 
 function narrationFromScenes(scenes: SceneDto[]): string {
@@ -22,7 +23,7 @@ function formatDuration(durationMs: number): string {
   return seconds < 60 ? `${seconds.toFixed(1)} s` : `${Math.floor(seconds / 60)} min ${(seconds % 60).toFixed(0)} s`
 }
 
-export function NarrationPanel({ project, scenes }: NarrationPanelProps): JSX.Element {
+export function NarrationPanel({ project, scenes, onTrackChange }: NarrationPanelProps): JSX.Element {
   const suggestedText = useMemo(() => narrationFromScenes(scenes), [scenes])
   const [track, setTrack] = useState<NarrationTrackDto | null>(null)
   const [text, setText] = useState(suggestedText)
@@ -46,13 +47,14 @@ export function NarrationPanel({ project, scenes }: NarrationPanelProps): JSX.El
         }))
         if (cancelled) return
         setTrack(loaded)
+        onTrackChange?.(loaded)
         setSelectedTakeId(loaded.priseFinaleId ?? loaded.prises.at(-1)?.id ?? null)
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : 'Narration indisponible')
       }
     })()
     return () => { cancelled = true }
-  }, [project.id, project.langueSource])
+  }, [project.id, project.langueSource, onTrackChange])
 
   async function generate(): Promise<void> {
     if (!window.electronAPI || !text.trim()) {
@@ -69,6 +71,7 @@ export function NarrationPanel({ project, scenes }: NarrationPanelProps): JSX.El
         voixId: 'fr_FR-siwis-medium'
       }))
       setTrack(updated)
+      onTrackChange?.(updated)
       setSelectedTakeId(updated.prises.at(-1)?.id ?? null)
     } catch (generationError) {
       setError(generationError instanceof Error ? generationError.message : 'Génération impossible')
@@ -89,6 +92,7 @@ export function NarrationPanel({ project, scenes }: NarrationPanelProps): JSX.El
       }))
       if ('canceled' in updated && updated.canceled) return
       setTrack(updated)
+      onTrackChange?.(updated)
       setSelectedTakeId(updated.prises.at(-1)?.id ?? null)
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : 'Import audio impossible')
@@ -112,6 +116,7 @@ export function NarrationPanel({ project, scenes }: NarrationPanelProps): JSX.El
     try {
       const updated = unwrapIpc(await window.electronAPI.narrationSelectFinal({ projectId: project.id, takeId }))
       setTrack(updated)
+      onTrackChange?.(updated)
       setSelectedTakeId(takeId)
     } catch (selectError) {
       setError(selectError instanceof Error ? selectError.message : 'Sélection impossible')

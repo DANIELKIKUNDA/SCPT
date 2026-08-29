@@ -1,0 +1,40 @@
+SCPT — PHASE 9 PATCH MANIFEST
+Scope: Rendu Remotion local only
+Baseline: Phase 8 Windows-validated 241/241 + Phase 9 preflight Windows-validated
+@remotion/renderer@4.0.0 and @remotion/bundler@4.0.0 already present in baseline.
+No file deletion. No package.json/pnpm-lock.yaml change by main implementation. No Phase 10 dependency.
+Files added/modified by patch: 33
+
+PHASE9_PATCH_MANIFEST.txt
+docs/reports/phase9-implementation-report.md
+src/contexts/projects/application/ports/moteur-rendu.port.ts
+src/contexts/projects/application/use-cases/rendering/__tests__/render-use-cases.test.ts
+src/contexts/projects/application/use-cases/rendering/list-render-jobs.use-case.ts
+src/contexts/projects/application/use-cases/rendering/request-render.use-case.ts
+src/contexts/projects/application/use-cases/rendering/retry-render.use-case.ts
+src/contexts/projects/domain/aggregates/__tests__/export-audiovisuel.test.ts
+src/contexts/projects/domain/aggregates/export-audiovisuel.ts
+src/contexts/projects/domain/repositories/export-audiovisuel.repository.ts
+src/contexts/projects/domain/value-objects/export-id.ts
+src/contexts/projects/infrastructure/persistence/__tests__/drizzle-export-repository.test.ts
+src/contexts/projects/infrastructure/persistence/__tests__/project-source-snapshot.test.ts
+src/contexts/projects/infrastructure/persistence/drizzle-export-repository.ts
+src/contexts/projects/infrastructure/rendering/__tests__/offline-browser-resolver.test.ts
+src/contexts/projects/infrastructure/rendering/__tests__/project-render-payload-builder.test.ts
+src/contexts/projects/infrastructure/rendering/__tests__/render-filesystem.test.ts
+src/contexts/projects/infrastructure/rendering/offline-browser-resolver.ts
+src/contexts/projects/infrastructure/rendering/project-render-payload-builder.ts
+src/contexts/projects/infrastructure/rendering/remotion-render-adapter.ts
+src/contexts/projects/infrastructure/rendering/render-filesystem.ts
+src/main/ipc/handlers.test.ts
+src/main/ipc/handlers.ts
+src/main/persistence/project-manifest.ts
+src/main/rendering/__tests__/render-job-coordinator.test.ts
+src/main/rendering/render-job-coordinator.ts
+src/preload/index.ts
+src/renderer/src/components/editor/EditorWorkspace.tsx
+src/renderer/src/components/rendering/RenderingPanel.tsx
+src/renderer/src/components/rendering/__tests__/RenderingPanel.test.tsx
+src/renderer/src/styles.css
+src/shared/ipc/channels.ts
+src/shared/types/electron-api.ts

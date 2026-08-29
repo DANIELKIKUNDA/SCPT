@@ -1,5 +1,5 @@
 import { useCurrentFrame, useVideoConfig } from 'remotion'
-import type { PreviewScene } from '../types/preview-types'
+import type { PreviewDeclination, PreviewScene } from '../types/preview-types'
 import { resolveThemeForBackground, type PreviewTheme } from '../themes/themes'
 import { transitionStyle } from '../animations/transitions'
 import { TextScene } from './TextScene'
@@ -13,9 +13,10 @@ interface SceneRendererProps {
   theme: PreviewTheme
   durationInFrames: number
   reduceMotion: boolean
+  declination: PreviewDeclination
 }
 
-export function SceneRenderer({ scene, theme, durationInFrames, reduceMotion }: SceneRendererProps): JSX.Element {
+export function SceneRenderer({ scene, theme, durationInFrames, reduceMotion, declination }: SceneRendererProps): JSX.Element {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   const style = transitionStyle({ frame, durationInFrames, fps, transition: scene.transition, reduceMotion })
@@ -24,19 +25,19 @@ export function SceneRenderer({ scene, theme, durationInFrames, reduceMotion }: 
   let content: JSX.Element
   switch (scene.type) {
     case 'texte':
-      content = <TextScene scene={scene} theme={readableTheme} />
+      content = <TextScene scene={scene} theme={readableTheme} declination={declination} />
       break
     case 'formule':
-      content = <FormulaScene scene={scene} theme={readableTheme} />
+      content = <FormulaScene scene={scene} theme={readableTheme} declination={declination} />
       break
     case 'image':
-      content = <ImageScene scene={scene} theme={readableTheme} />
+      content = <ImageScene scene={scene} theme={readableTheme} declination={declination} />
       break
     case 'code':
-      content = <CodeScene scene={scene} theme={readableTheme} />
+      content = <CodeScene scene={scene} theme={readableTheme} declination={declination} />
       break
     case 'diagramme':
-      content = <DiagramScene scene={scene} theme={readableTheme} />
+      content = <DiagramScene scene={scene} theme={readableTheme} declination={declination} />
       break
     default: {
       const exhaustive: never = scene.type

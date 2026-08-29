@@ -25,7 +25,25 @@ export const IPC_CHANNELS = {
   NARRATION_IMPORT: 'narration:import',
   NARRATION_SELECT_FINAL: 'narration:select-final',
   NARRATION_READ_AUDIO: 'narration:read-audio',
-  NARRATION_CANCEL: 'narration:cancel'
+  NARRATION_CANCEL: 'narration:cancel',
+  SUBTITLES_GET: 'subtitles:get',
+  SUBTITLES_SYNCHRONIZE: 'subtitles:synchronize',
+  SUBTITLES_UPDATE_SEGMENT: 'subtitles:update-segment',
+  SUBTITLES_ADD_SEGMENT: 'subtitles:add-segment',
+  SUBTITLES_DELETE_SEGMENT: 'subtitles:delete-segment',
+  SUBTITLES_VALIDATE: 'subtitles:validate',
+  SUBTITLES_EXPORT: 'subtitles:export',
+  DECLINAISONS_LIST: 'declinaisons:list',
+  DECLINAISONS_CREATE: 'declinaisons:create',
+  DECLINAISONS_SET_OVERRIDE: 'declinaisons:set-override',
+  DECLINAISONS_REMOVE_OVERRIDE: 'declinaisons:remove-override',
+  DECLINAISONS_VALIDATE: 'declinaisons:validate',
+  DECLINAISONS_MARK_READY: 'declinaisons:mark-ready',
+  RENDER_LIST: 'render:list',
+  RENDER_START: 'render:start',
+  RENDER_CANCEL: 'render:cancel',
+  RENDER_RETRY: 'render:retry',
+  RENDER_READ_LOG: 'render:read-log'
 } as const
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]

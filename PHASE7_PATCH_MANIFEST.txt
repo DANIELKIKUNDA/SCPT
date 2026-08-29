@@ -1,0 +1,64 @@
+SCPT — Phase 7 — Patch d’implémentation Sous-titres
+
+Baseline attendue : Phase 6 définitivement figée au commit Windows e69d29c7517f52e7b30f2e91d910753ff4e79937.
+Ce patch contient uniquement les fichiers ajoutés/modifiés par l’implémentation principale de la Phase 7.
+Aucune dépendance npm supplémentaire n’est requise pour cette phase.
+
+FICHIERS DU PATCH
+- docs/reports/phase7-implementation-report.md
+- src/contexts/projects/application/ports/subtitle-file.port.ts
+- src/contexts/projects/application/services/__tests__/subtitle-services.test.ts
+- src/contexts/projects/application/services/subtitle-format.ts
+- src/contexts/projects/application/services/subtitle-synchronizer.ts
+- src/contexts/projects/application/use-cases/subtitles/__tests__/subtitle-use-cases.test.ts
+- src/contexts/projects/application/use-cases/subtitles/add-subtitle-segment.use-case.ts
+- src/contexts/projects/application/use-cases/subtitles/delete-subtitle-segment.use-case.ts
+- src/contexts/projects/application/use-cases/subtitles/export-subtitles.use-case.ts
+- src/contexts/projects/application/use-cases/subtitles/get-subtitle-track.use-case.ts
+- src/contexts/projects/application/use-cases/subtitles/mark-subtitles-resync.use-case.ts
+- src/contexts/projects/application/use-cases/subtitles/synchronize-subtitles.use-case.ts
+- src/contexts/projects/application/use-cases/subtitles/update-subtitle-segment.use-case.ts
+- src/contexts/projects/application/use-cases/subtitles/validate-subtitle-track.use-case.ts
+- src/contexts/projects/domain/aggregates/__tests__/piste-sous-titres.test.ts
+- src/contexts/projects/domain/aggregates/piste-sous-titres.ts
+- src/contexts/projects/domain/repositories/piste-sous-titres.repository.ts
+- src/contexts/projects/domain/value-objects/declinaison-id.ts
+- src/contexts/projects/domain/value-objects/piste-sous-titres-id.ts
+- src/contexts/projects/infrastructure/persistence/__tests__/drizzle-subtitle-repository.test.ts
+- src/contexts/projects/infrastructure/persistence/drizzle-subtitle-repository.ts
+- src/contexts/projects/infrastructure/subtitles/__tests__/subtitle-filesystem.test.ts
+- src/contexts/projects/infrastructure/subtitles/subtitle-filesystem.ts
+- src/main/ipc/handlers.ts
+- src/main/persistence/project-manifest.ts
+- src/preload/index.ts
+- src/remotion/Root.tsx
+- src/remotion/components/SubtitleOverlay.tsx
+- src/remotion/components/__tests__/SubtitleOverlay.test.tsx
+- src/remotion/compositions/ProjectComposition.tsx
+- src/remotion/types/preview-types.ts
+- src/remotion/utils/__tests__/subtitles.test.ts
+- src/remotion/utils/subtitles.ts
+- src/renderer/src/components/editor/EditorWorkspace.tsx
+- src/renderer/src/components/narration/NarrationPanel.tsx
+- src/renderer/src/components/preview/PreviewPanel.tsx
+- src/renderer/src/components/subtitles/SubtitlePanel.tsx
+- src/renderer/src/styles.css
+- src/shared/ipc/channels.ts
+- src/shared/types/electron-api.ts
+
+CONTRÔLES STATIQUES EFFECTUÉS DANS L’ENVIRONNEMENT CHATGPT
+- TypeScript/TSX applicatif : 143 fichiers parsés, 0 erreur de syntaxe.
+- Imports relatifs : 0 import relatif manquant détecté.
+- Renderer : 0 import Node interdit détecté (fs / child_process / better-sqlite3 / execa).
+- Tests présents après patch : 34 fichiers de test, 200 appels it/test recensés statiquement.
+- Diff fonctionnel limité à la Phase 7 ; aucune dépendance npm ajoutée.
+
+VALIDATION WINDOWS ENCORE OBLIGATOIRE
+- pnpm env:check
+- pnpm typecheck
+- pnpm lint
+- pnpm test
+- pnpm build
+- pnpm dev (Electron réel)
+
+Phase 8 non commencée.

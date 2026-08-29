@@ -32,6 +32,20 @@ vi.mock('electron', () => {
   }
 })
 
+// This IPC wiring suite must not initialize the real Remotion bundler/renderer.
+// @remotion/bundler loads esbuild at module evaluation time; under the global
+// jsdom test realm, TextEncoder/Uint8Array come from different realms and
+// esbuild correctly rejects that broken invariant. The real renderer is already
+// covered by dedicated Phase 9 tests and the Windows preflight, so this unit
+// suite mocks the rendering infrastructure boundary.
+vi.mock('../../contexts/projects/infrastructure/rendering/remotion-render-adapter', () => ({
+  RemotionRenderAdapter: class {
+    async render(): Promise<never> {
+      throw new Error('UNEXPECTED_RENDER_IN_IPC_UNIT_TEST')
+    }
+  }
+}))
+
 vi.mock('../logging/logger', () => ({
   logger: {
     info: vi.fn(),
@@ -120,6 +134,21 @@ vi.mock('../../contexts/projects/infrastructure/persistence/drizzle-media-reposi
     findByChecksum: async (): Promise<unknown> => null,
     save: async (): Promise<void> => {},
     delete: async (): Promise<void> => {},
+    close: (): void => {}
+  })
+}))
+
+// Phase 9 project-open recovery must remain purely in-memory in this IPC unit suite.
+// With no interrupted jobs, the coordinator does not instantiate scene/media/narration
+// rendering dependencies and no native SQLite handle is opened.
+vi.mock('../../contexts/projects/infrastructure/persistence/drizzle-export-repository', () => ({
+  createDrizzleExportRepository: () => ({
+    save: async (): Promise<void> => {},
+    findById: async (): Promise<unknown> => null,
+    findAllByProject: async (): Promise<unknown[]> => [],
+    findActiveByDeclinaison: async (): Promise<unknown> => null,
+    findByStatuses: async (): Promise<unknown[]> => [],
+    maxAttemptForDeclinaison: async (): Promise<number> => 0,
     close: (): void => {}
   })
 }))
