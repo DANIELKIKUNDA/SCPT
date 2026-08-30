@@ -24,6 +24,7 @@ const electronAPI: ElectronAPI = {
   mediaAssociate: (input) => ipcRenderer.invoke(IPC_CHANNELS.MEDIA_ASSOCIATE, input),
   mediaMarkMissing: (input) => ipcRenderer.invoke(IPC_CHANNELS.MEDIA_MARK_MISSING, input),
   mediaReplace: (input) => ipcRenderer.invoke(IPC_CHANNELS.MEDIA_REPLACE, input),
+  mediaUpdateRights: (input) => ipcRenderer.invoke(IPC_CHANNELS.MEDIA_UPDATE_RIGHTS, input),
   narrationGet: (input) => ipcRenderer.invoke(IPC_CHANNELS.NARRATION_GET, input),
   narrationGenerate: (input) => ipcRenderer.invoke(IPC_CHANNELS.NARRATION_GENERATE, input),
   narrationImport: (input) => ipcRenderer.invoke(IPC_CHANNELS.NARRATION_IMPORT, input),
@@ -47,7 +48,14 @@ const electronAPI: ElectronAPI = {
   renderStart: (input) => ipcRenderer.invoke(IPC_CHANNELS.RENDER_START, input),
   renderCancel: (input) => ipcRenderer.invoke(IPC_CHANNELS.RENDER_CANCEL, input),
   renderRetry: (input) => ipcRenderer.invoke(IPC_CHANNELS.RENDER_RETRY, input),
-  renderReadLog: (input) => ipcRenderer.invoke(IPC_CHANNELS.RENDER_READ_LOG, input)
+  renderReadLog: (input) => ipcRenderer.invoke(IPC_CHANNELS.RENDER_READ_LOG, input),
+  finalExportList: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.FINAL_EXPORT_LIST, projectId),
+  finalExportStart: (input) => ipcRenderer.invoke(IPC_CHANNELS.FINAL_EXPORT_START, input),
+  finalExportCancel: (input) => ipcRenderer.invoke(IPC_CHANNELS.FINAL_EXPORT_CANCEL, input),
+  finalExportRetry: (input) => ipcRenderer.invoke(IPC_CHANNELS.FINAL_EXPORT_RETRY, input),
+  finalExportReadLog: (input) => ipcRenderer.invoke(IPC_CHANNELS.FINAL_EXPORT_READ_LOG, input),
+  finalExportOpenFile: (input) => ipcRenderer.invoke(IPC_CHANNELS.FINAL_EXPORT_OPEN_FILE, input),
+  finalExportShowInFolder: (input) => ipcRenderer.invoke(IPC_CHANNELS.FINAL_EXPORT_SHOW_IN_FOLDER, input)
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

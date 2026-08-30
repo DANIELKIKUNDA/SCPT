@@ -28,6 +28,10 @@ vi.mock('electron', () => {
           onHeadersReceived: vi.fn()
         }
       }
+    },
+    shell: {
+      openPath: vi.fn(async () => ''),
+      showItemInFolder: vi.fn()
     }
   }
 })
@@ -114,7 +118,8 @@ vi.mock('../../contexts/projects/infrastructure/persistence/drizzle-project-repo
 vi.mock('../persistence/project-manifest', () => ({
   getProjectManifestService: () => ({
     getDatabasePath: (): string => ':memory:',
-    getProjectDir: (): string => '/mock/project/'
+    getProjectDir: (): string => '/mock/project/',
+    readManifest: () => ({ titre: 'Projet test' })
   })
 }))
 
@@ -149,6 +154,18 @@ vi.mock('../../contexts/projects/infrastructure/persistence/drizzle-export-repos
     findActiveByDeclinaison: async (): Promise<unknown> => null,
     findByStatuses: async (): Promise<unknown[]> => [],
     maxAttemptForDeclinaison: async (): Promise<number> => 0,
+    close: (): void => {}
+  })
+}))
+
+vi.mock('../../contexts/projects/infrastructure/persistence/drizzle-final-export-repository', () => ({
+  createDrizzleFinalExportRepository: () => ({
+    save: async (): Promise<void> => {},
+    findById: async (): Promise<unknown> => null,
+    findAllByProject: async (): Promise<unknown[]> => [],
+    findActiveByRenderJob: async (): Promise<unknown> => null,
+    findByStatuses: async (): Promise<unknown[]> => [],
+    maxAttemptForRenderJob: async (): Promise<number> => 0,
     close: (): void => {}
   })
 }))

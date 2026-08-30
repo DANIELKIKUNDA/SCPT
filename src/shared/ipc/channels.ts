@@ -20,6 +20,7 @@ export const IPC_CHANNELS = {
   MEDIA_ASSOCIATE: 'media:associate',
   MEDIA_MARK_MISSING: 'media:mark-missing',
   MEDIA_REPLACE: 'media:replace',
+  MEDIA_UPDATE_RIGHTS: 'media:update-rights',
   NARRATION_GET: 'narration:get',
   NARRATION_GENERATE: 'narration:generate',
   NARRATION_IMPORT: 'narration:import',
@@ -43,7 +44,14 @@ export const IPC_CHANNELS = {
   RENDER_START: 'render:start',
   RENDER_CANCEL: 'render:cancel',
   RENDER_RETRY: 'render:retry',
-  RENDER_READ_LOG: 'render:read-log'
+  RENDER_READ_LOG: 'render:read-log',
+  FINAL_EXPORT_LIST: 'final-export:list',
+  FINAL_EXPORT_START: 'final-export:start',
+  FINAL_EXPORT_CANCEL: 'final-export:cancel',
+  FINAL_EXPORT_RETRY: 'final-export:retry',
+  FINAL_EXPORT_READ_LOG: 'final-export:read-log',
+  FINAL_EXPORT_OPEN_FILE: 'final-export:open-file',
+  FINAL_EXPORT_SHOW_IN_FOLDER: 'final-export:show-in-folder'
 } as const
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]

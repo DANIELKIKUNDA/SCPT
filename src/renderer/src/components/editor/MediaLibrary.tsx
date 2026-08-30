@@ -47,6 +47,17 @@ export function MediaLibrary({ medias, loading, onRefresh }: MediaLibraryProps):
     }
   }
 
+
+  async function handleRights(mediaId: string, droits: MediaDto['droits']): Promise<void> {
+    if (!projectId || !window.electronAPI) return
+    setError(null)
+    try {
+      unwrapIpc(await window.electronAPI.mediaUpdateRights({ mediaId, projetId: projectId, droits }))
+      await onRefresh()
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Mise à jour des droits impossible')
+    }
+  }
   async function handleReplace(mediaId: string): Promise<void> {
     if (!projectId || !window.electronAPI) return
     const sourcePath = prompt('Chemin complet du fichier de remplacement :')
@@ -96,6 +107,19 @@ export function MediaLibrary({ medias, loading, onRefresh }: MediaLibraryProps):
               )}
             </div>
             <div className="media-card-actions">
+              <label className="media-rights-control" title="Droits requis pour l’export final">
+                <span>Droits</span>
+                <select
+                  value={media.droits}
+                  onChange={(event) => void handleRights(media.id, event.target.value as MediaDto['droits'])}
+                >
+                  <option value="inconnue">Inconnus</option>
+                  <option value="originale">Original</option>
+                  <option value="autorisee">Autorisé</option>
+                  <option value="libre">Libre</option>
+                  <option value="interdite">Interdit</option>
+                </select>
+              </label>
               {media.statut === 'manquante' ? (
                 <button className="btn btn-sm" onClick={() => void handleReplace(media.id)}>Remplacer</button>
               ) : (

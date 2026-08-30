@@ -105,6 +105,17 @@ export class RessourceMedia {
     return new RessourceMedia({ ...this.props, statut: 'disponible', version: this.props.version.next() })
   }
 
+  /**
+   * Phase 10 closes the rights gate required before final export. Updating rights
+   * is a semantic media change and therefore increments the source version.
+   */
+  withDroits(droits: MediaDroits): RessourceMedia {
+    const allowed: MediaDroits[] = ['originale', 'autorisee', 'libre', 'inconnue', 'interdite']
+    if (!allowed.includes(droits)) throw new Error('Invalid media rights')
+    if (droits === this.props.droits) return this
+    return new RessourceMedia({ ...this.props, droits, version: this.props.version.next() })
+  }
+
   toJSON(): RessourceMediaProps {
     return { ...this.props }
   }

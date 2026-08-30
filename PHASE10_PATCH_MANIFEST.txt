@@ -1,0 +1,48 @@
+SCPT — PHASE 10 PATCH MANIFEST
+Scope: FFmpeg/FFprobe final MP4 export only
+Baseline: Phase 9 Windows-certified 280/280 + Phase 10 preflight Windows-validated
+ffmpeg-static@5.3.0 and ffprobe-static@3.1.0 already present in baseline post-preflight.
+No file deletion. No Phase 11 implementation.
+Files added/modified by patch: 41
+
+PHASE10_PATCH_MANIFEST.txt
+docs/reports/phase10-implementation-report.md
+package.json
+src/contexts/projects/application/ports/encodage-video.port.ts
+src/contexts/projects/application/ports/inspection-media.port.ts
+src/contexts/projects/application/use-cases/final-export/__tests__/final-export-use-cases.test.ts
+src/contexts/projects/application/use-cases/final-export/list-final-exports.use-case.ts
+src/contexts/projects/application/use-cases/final-export/request-final-export.use-case.ts
+src/contexts/projects/application/use-cases/final-export/retry-final-export.use-case.ts
+src/contexts/projects/domain/aggregates/__tests__/export-final-audiovisuel.test.ts
+src/contexts/projects/domain/aggregates/__tests__/ressource-media.test.ts
+src/contexts/projects/domain/aggregates/export-final-audiovisuel.ts
+src/contexts/projects/domain/aggregates/ressource-media.ts
+src/contexts/projects/domain/repositories/export-final-audiovisuel.repository.ts
+src/contexts/projects/infrastructure/final-export/__tests__/ffmpeg-helpers.test.ts
+src/contexts/projects/infrastructure/final-export/__tests__/ffprobe-parser.test.ts
+src/contexts/projects/infrastructure/final-export/__tests__/final-export-filesystem.test.ts
+src/contexts/projects/infrastructure/final-export/__tests__/final-export-input-builder.test.ts
+src/contexts/projects/infrastructure/final-export/__tests__/final-media-verifier.test.ts
+src/contexts/projects/infrastructure/final-export/ffmpeg-binary-resolver.ts
+src/contexts/projects/infrastructure/final-export/ffmpeg-encoding-adapter.ts
+src/contexts/projects/infrastructure/final-export/ffprobe-inspection-adapter.ts
+src/contexts/projects/infrastructure/final-export/final-export-filesystem.ts
+src/contexts/projects/infrastructure/final-export/final-export-input-builder.ts
+src/contexts/projects/infrastructure/final-export/final-media-verifier.ts
+src/contexts/projects/infrastructure/persistence/__tests__/drizzle-final-export-repository.test.ts
+src/contexts/projects/infrastructure/persistence/drizzle-final-export-repository.ts
+src/main/final-export/__tests__/final-export-coordinator.test.ts
+src/main/final-export/final-export-coordinator.ts
+src/main/ipc/handlers.test.ts
+src/main/ipc/handlers.ts
+src/main/persistence/project-manifest.ts
+src/preload/index.ts
+src/renderer/src/components/editor/EditorWorkspace.tsx
+src/renderer/src/components/editor/MediaLibrary.tsx
+src/renderer/src/components/final-export/FinalExportPanel.tsx
+src/renderer/src/components/final-export/__tests__/FinalExportPanel.test.tsx
+src/renderer/src/styles.css
+src/shared/ipc/channels.ts
+src/shared/types/electron-api.ts
+src/shared/types/external-media-tools.d.ts

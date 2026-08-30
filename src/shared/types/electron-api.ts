@@ -63,6 +63,7 @@ export interface MediaDto {
   hauteur: number | null
   dureeMs: number | null
   statut: string
+  droits: 'originale' | 'autorisee' | 'libre' | 'inconnue' | 'interdite'
   previewUrl: string | null
 }
 
@@ -206,6 +207,52 @@ export interface RenderJobDto {
   logRelativePath: string
 }
 
+export type FinalExportStatusDto =
+  | 'demande'
+  | 'en_attente'
+  | 'en_preparation'
+  | 'en_encodage'
+  | 'en_verification'
+  | 'termine'
+  | 'echoue'
+  | 'annule'
+
+export interface FinalExportDto {
+  id: string
+  projectId: string
+  renderJobId: string
+  declinaisonId: string
+  tentative: number
+  statut: FinalExportStatusDto
+  progression: number
+  profil: 'MVP_PREMIUM'
+  sourceRenderChecksum: string
+  narrationTakeId: string
+  narrationChecksum: string
+  diagnostic: string | null
+  technique: {
+    nomFichier: string
+    cheminFichier: string
+    checksum: string
+    tailleOctets: number
+    dureeMs: number
+    largeur: number
+    hauteur: number
+    fps: number
+    codecVideo: 'h264'
+    pixelFormat: 'yuv420p'
+    codecAudio: 'aac'
+    audioSampleRate: 48000
+  } | null
+  createdAt: string
+  updatedAt: string
+  startedAt: string | null
+  finishedAt: string | null
+  actif: boolean
+  peutRelancer: boolean
+  logRelativePath: string
+}
+
 export interface ElectronAPI {
   systemPing: () => Promise<IpcResult<{ message: 'pong'; timestamp: number }>>
   systemGetAppInfo: () => Promise<IpcResult<{
@@ -264,6 +311,7 @@ export interface ElectronAPI {
     statut: string
     thumbnailPath: string | null
   }>>
+  mediaUpdateRights: (input: { mediaId: string; projetId: string; droits: MediaDto['droits'] }) => Promise<IpcResult<MediaDto>>
   narrationGet: (input: { projectId: string; langue: string }) => Promise<IpcResult<NarrationTrackDto>>
   narrationGenerate: (input: {
     projectId: string
@@ -326,4 +374,11 @@ export interface ElectronAPI {
   renderCancel: (input: { projectId: string; jobId: string }) => Promise<IpcResult<{ canceled: boolean }>>
   renderRetry: (input: { projectId: string; jobId: string }) => Promise<IpcResult<RenderJobDto>>
   renderReadLog: (input: { projectId: string; jobId: string }) => Promise<IpcResult<{ content: string }>>
+  finalExportList: (projectId: string) => Promise<IpcResult<FinalExportDto[]>>
+  finalExportStart: (input: { projectId: string; renderJobId: string }) => Promise<IpcResult<FinalExportDto>>
+  finalExportCancel: (input: { projectId: string; exportId: string }) => Promise<IpcResult<{ canceled: boolean }>>
+  finalExportRetry: (input: { projectId: string; exportId: string }) => Promise<IpcResult<FinalExportDto>>
+  finalExportReadLog: (input: { projectId: string; exportId: string }) => Promise<IpcResult<{ content: string }>>
+  finalExportOpenFile: (input: { projectId: string; exportId: string }) => Promise<IpcResult<{ opened: boolean }>>
+  finalExportShowInFolder: (input: { projectId: string; exportId: string }) => Promise<IpcResult<{ shown: boolean }>>
 }

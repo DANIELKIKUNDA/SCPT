@@ -1,4 +1,4 @@
-import { ipcMain, app, dialog } from 'electron'
+import { ipcMain, app, dialog, shell } from 'electron'
 import { z } from 'zod'
 import { IPC_CHANNELS } from '../../shared/ipc/channels'
 import { ipcSuccess, ipcFailure } from '../../shared/types/ipc'
@@ -81,6 +81,16 @@ import {
   resolveRemotionEntryPoint,
   resolveRenderBrowser
 } from '../rendering/render-job-coordinator'
+import type { ExportFinalAudiovisuel } from '../../contexts/projects/domain/aggregates/export-final-audiovisuel'
+import { createDrizzleFinalExportRepository } from '../../contexts/projects/infrastructure/persistence/drizzle-final-export-repository'
+import { RequestFinalExportUseCase } from '../../contexts/projects/application/use-cases/final-export/request-final-export.use-case'
+import { ListFinalExportsUseCase } from '../../contexts/projects/application/use-cases/final-export/list-final-exports.use-case'
+import { RetryFinalExportUseCase } from '../../contexts/projects/application/use-cases/final-export/retry-final-export.use-case'
+import { FFmpegEncodingAdapter } from '../../contexts/projects/infrastructure/final-export/ffmpeg-encoding-adapter'
+import { FFprobeInspectionAdapter } from '../../contexts/projects/infrastructure/final-export/ffprobe-inspection-adapter'
+import { resolveFfmpegExecutable, resolveFfprobeExecutable } from '../../contexts/projects/infrastructure/final-export/ffmpeg-binary-resolver'
+import { FinalExportFilesystem } from '../../contexts/projects/infrastructure/final-export/final-export-filesystem'
+import { FinalExportCoordinator } from '../final-export/final-export-coordinator'
 
 let repo: ReturnType<typeof createSqliteProjectRepository> | null = null
 
@@ -263,6 +273,15 @@ export function registerIpcHandlers(): void {
         logger.warn({ err: error, projectId }, 'Render recovery on project open failed (non-blocking)')
       }
 
+      // Phase 10: final encodes interrupted by a graceful close are also
+      // re-queued on reopen. Recovery is intentionally non-blocking so a
+      // missing FFmpeg binary cannot prevent access to the project itself.
+      try {
+        await ensureFinalExportRecovery(projectId)
+      } catch (error) {
+        logger.warn({ err: error, projectId }, 'Final export recovery on project open failed (non-blocking)')
+      }
+
       return ipcSuccess({
         id: projet.id.value,
         titre: projet.titre,
@@ -293,6 +312,7 @@ export function registerIpcHandlers(): void {
       if (typeof projectId !== 'string') {
         return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid project ID')
       }
+      if (finalExportCoordinator) await finalExportCoordinator.pauseProject(projectId)
       if (renderCoordinator) await renderCoordinator.pauseProject(projectId)
       await getLockManager().releaseLock(projectId)
       mediaWatcher.stopWatching(projectId)
@@ -312,7 +332,10 @@ export function registerIpcHandlers(): void {
       sourceVersionAdapters.delete(projectId)
       renderRepos.get(projectId)?.close()
       renderRepos.delete(projectId)
+      finalExportRepos.get(projectId)?.close()
+      finalExportRepos.delete(projectId)
       renderRecoveryPerformed.delete(projectId)
+      finalExportRecoveryPerformed.delete(projectId)
       return ipcSuccess({ released: true })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
@@ -550,6 +573,7 @@ export function registerIpcHandlers(): void {
         hauteur: media.hauteur,
         dureeMs: media.dureeMs,
         statut: media.statut,
+        droits: media.droits,
         previewUrl: media.isDisponible ? toMediaPreviewUrl(data.projetId, media.id.value) : null
       })
     } catch (err) {
@@ -573,6 +597,7 @@ export function registerIpcHandlers(): void {
         hauteur: m.hauteur,
         dureeMs: m.dureeMs,
         statut: m.statut,
+        droits: m.droits,
         previewUrl: m.isDisponible ? toMediaPreviewUrl(projectId, m.id.value) : null
       })))
     } catch (err) {
@@ -605,6 +630,40 @@ export function registerIpcHandlers(): void {
       return ipcSuccess({ id: updated.id.value, statut: updated.statut })
     } catch (err) {
       return ipcFailure(ErrorCodes.IPC_ERROR, err instanceof Error ? err.message : 'Failed')
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.MEDIA_UPDATE_RIGHTS, async (_event, input: unknown) => {
+    try {
+      const MediaRightsSchema = z.object({
+        mediaId: z.string().min(1),
+        projetId: z.string().min(1),
+        droits: z.enum(['originale', 'autorisee', 'libre', 'inconnue', 'interdite'])
+      })
+      const parsed = MediaRightsSchema.safeParse(input)
+      if (!parsed.success) return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Droits média invalides')
+      const mediaRepo = getMediaRepo(parsed.data.projetId)
+      const media = await mediaRepo.findById(RessourceMediaId.from(parsed.data.mediaId))
+      if (!media) return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Média introuvable')
+      const updated = media.withDroits(parsed.data.droits)
+      await mediaRepo.save(updated)
+      return ipcSuccess({
+        id: updated.id.value,
+        type: updated.type,
+        cheminRelatif: updated.cheminRelatif,
+        nomOriginal: updated.nomOriginal,
+        checksum: updated.checksum,
+        tailleOctets: updated.tailleOctets,
+        mimeType: updated.mimeType,
+        largeur: updated.largeur,
+        hauteur: updated.hauteur,
+        dureeMs: updated.dureeMs,
+        statut: updated.statut,
+        droits: updated.droits,
+        previewUrl: updated.isDisponible ? toMediaPreviewUrl(parsed.data.projetId, updated.id.value) : null
+      })
+    } catch (err) {
+      return ipcFailure(ErrorCodes.IPC_ERROR, err instanceof Error ? err.message : 'Mise à jour des droits impossible')
     }
   })
 
@@ -1386,6 +1445,217 @@ export function registerIpcHandlers(): void {
     }
   })
 
+  // Phase 10: final MP4 encoding and objective FFprobe verification.
+  // This is deliberately separate from the Phase 9 Remotion render queue: a
+  // completed intermediate render remains immutable and becomes the input of a
+  // final export attempt.
+  const finalExportRepos = new Map<string, ReturnType<typeof createDrizzleFinalExportRepository>>()
+  let finalExportCoordinator: FinalExportCoordinator | null = null
+  const finalExportRecoveryPerformed = new Set<string>()
+
+  function getFinalExportRepo(projectId: string): ReturnType<typeof createDrizzleFinalExportRepository> {
+    let value = finalExportRepos.get(projectId)
+    if (!value) {
+      value = createDrizzleFinalExportRepository(getProjectManifestService().getDatabasePath(projectId))
+      finalExportRepos.set(projectId, value)
+    }
+    return value
+  }
+
+  function getFinalExportCoordinator(): FinalExportCoordinator {
+    if (finalExportCoordinator) return finalExportCoordinator
+    const encoder = new FFmpegEncodingAdapter(resolveFfmpegExecutable())
+    const inspector = new FFprobeInspectionAdapter(resolveFfprobeExecutable())
+    finalExportCoordinator = new FinalExportCoordinator({
+      encoder,
+      inspector,
+      contextFor(projectId) {
+        const manifest = getProjectManifestService().readManifest(projectId)
+        return {
+          finalExports: getFinalExportRepo(projectId),
+          renders: getRenderRepo(projectId),
+          declinaisons: getDeclinaisonRepo(projectId),
+          narrations: getNarrationRepo(projectId),
+          sourceVersions: getSourceVersion(projectId),
+          projectDir: getProjectManifestService().getProjectDir(projectId),
+          projectTitle: manifest?.titre ?? 'SCPT'
+        }
+      }
+    })
+    return finalExportCoordinator
+  }
+
+  async function ensureFinalExportRecovery(projectId: string): Promise<void> {
+    if (finalExportRecoveryPerformed.has(projectId)) return
+    const active = await getFinalExportRepo(projectId).findByStatuses(
+      ProjetAudiovisuelId.from(projectId),
+      ['demande', 'en_attente', 'en_preparation', 'en_encodage', 'en_verification']
+    )
+    if (active.length > 0) await getFinalExportCoordinator().recoverProject(projectId)
+    finalExportRecoveryPerformed.add(projectId)
+  }
+
+  function serializeFinalExport(value: ExportFinalAudiovisuel) {
+    return {
+      id: value.id.value,
+      projectId: value.projetId.value,
+      renderJobId: value.renderJobId.value,
+      declinaisonId: value.declinaisonId.value,
+      tentative: value.tentative,
+      statut: value.statut,
+      progression: value.progression,
+      profil: value.profil.value,
+      sourceRenderChecksum: value.sourceRenderChecksum,
+      narrationTakeId: value.narrationTakeId,
+      narrationChecksum: value.narrationChecksum,
+      diagnostic: value.diagnostic,
+      technique: value.technique,
+      createdAt: value.createdAt.toISOString(),
+      updatedAt: value.updatedAt.toISOString(),
+      startedAt: value.startedAt?.toISOString() ?? null,
+      finishedAt: value.finishedAt?.toISOString() ?? null,
+      actif: value.isActive,
+      peutRelancer: value.canRetry,
+      logRelativePath: `logs/final-export-${value.id.value.replace(/[^A-Za-z0-9_-]/g, '_')}.jsonl`
+    }
+  }
+
+  const FinalExportActionSchema = z.object({
+    projectId: z.string().min(1),
+    exportId: z.string().min(1)
+  })
+  const FinalExportStartSchema = z.object({
+    projectId: z.string().min(1),
+    renderJobId: z.string().min(1)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.FINAL_EXPORT_LIST, async (_event, projectId: unknown) => {
+    try {
+      if (typeof projectId !== 'string' || !projectId) return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Projet invalide')
+      await ensureFinalExportRecovery(projectId)
+      const items = await new ListFinalExportsUseCase(getFinalExportRepo(projectId)).execute(projectId)
+      return ipcSuccess(items.map(serializeFinalExport))
+    } catch (error) {
+      logger.error({ err: error, projectId }, 'final-export:list failed')
+      return ipcFailure(ErrorCodes.IPC_ERROR, error instanceof Error ? error.message : 'Exports finaux indisponibles')
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.FINAL_EXPORT_START, async (_event, input: unknown) => {
+    try {
+      const parsed = FinalExportStartSchema.safeParse(input)
+      if (!parsed.success) return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Demande d’export final invalide')
+      // Fail before creating a persistent job if the packaged binaries are absent.
+      resolveFfmpegExecutable()
+      resolveFfprobeExecutable()
+      await ensureFinalExportRecovery(parsed.data.projectId)
+      const item = await new RequestFinalExportUseCase(
+        getFinalExportRepo(parsed.data.projectId),
+        getRenderRepo(parsed.data.projectId),
+        getNarrationRepo(parsed.data.projectId),
+        getMediaRepo(parsed.data.projectId),
+        getSourceVersion(parsed.data.projectId)
+      ).execute(parsed.data)
+      getFinalExportCoordinator().schedule(parsed.data.projectId, item.id.value)
+      return ipcSuccess(serializeFinalExport(item))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Export final impossible'
+      const controlled: Record<string, string> = {
+        FFMPEG_NOT_FOUND: 'FFmpeg local est introuvable. Réparez l’installation SCPT.',
+        FFPROBE_NOT_FOUND: 'FFprobe local est introuvable. Réparez l’installation SCPT.',
+        FINAL_EXPORT_RENDER_NOT_FOUND: 'Rendu intermédiaire introuvable.',
+        FINAL_EXPORT_RENDER_NOT_READY: 'Le rendu intermédiaire doit être terminé avant l’export final.',
+        FINAL_EXPORT_SOURCE_OBSOLETE: 'Le projet a changé depuis ce rendu. Produisez un nouveau rendu intermédiaire.',
+        FINAL_EXPORT_ALREADY_ACTIVE: 'Un export final de ce rendu est déjà en cours.',
+        FINAL_EXPORT_AUDIO_MISSING: 'Sélectionnez une prise de narration finale avant l’export.',
+        FINAL_EXPORT_MEDIA_FORBIDDEN: 'Un média utilisé est marqué comme interdit à l’export.',
+        FINAL_EXPORT_MEDIA_RIGHTS_UNKNOWN: 'Renseignez les droits de tous les médias avant l’export final.',
+        FINAL_EXPORT_MEDIA_UNAVAILABLE: 'Un média du projet est manquant ou corrompu.'
+      }
+      return ipcFailure(ErrorCodes.VALIDATION_ERROR, controlled[message] ?? message)
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.FINAL_EXPORT_CANCEL, async (_event, input: unknown) => {
+    try {
+      const parsed = FinalExportActionSchema.safeParse(input)
+      if (!parsed.success) return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Export final invalide')
+      const canceled = await getFinalExportCoordinator().cancel(parsed.data.projectId, parsed.data.exportId)
+      return ipcSuccess({ canceled })
+    } catch (error) {
+      return ipcFailure(ErrorCodes.IPC_ERROR, error instanceof Error ? error.message : 'Annulation impossible')
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.FINAL_EXPORT_RETRY, async (_event, input: unknown) => {
+    try {
+      const parsed = FinalExportActionSchema.safeParse(input)
+      if (!parsed.success) return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Export final invalide')
+      resolveFfmpegExecutable()
+      resolveFfprobeExecutable()
+      const item = await new RetryFinalExportUseCase(
+        getFinalExportRepo(parsed.data.projectId),
+        getRenderRepo(parsed.data.projectId),
+        getNarrationRepo(parsed.data.projectId),
+        getSourceVersion(parsed.data.projectId)
+      ).execute(parsed.data.exportId)
+      getFinalExportCoordinator().schedule(parsed.data.projectId, item.id.value)
+      return ipcSuccess(serializeFinalExport(item))
+    } catch (error) {
+      return ipcFailure(ErrorCodes.VALIDATION_ERROR, error instanceof Error ? error.message : 'Relance impossible')
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.FINAL_EXPORT_READ_LOG, async (_event, input: unknown) => {
+    try {
+      const parsed = FinalExportActionSchema.safeParse(input)
+      if (!parsed.success) return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Export final invalide')
+      const item = await getFinalExportRepo(parsed.data.projectId).findById(ExportId.from(parsed.data.exportId))
+      if (!item || item.projetId.value !== parsed.data.projectId) return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Export final introuvable')
+      const content = await new FinalExportFilesystem(getProjectManifestService().getProjectDir(parsed.data.projectId))
+        .readLog(`logs/final-export-${item.id.value.replace(/[^A-Za-z0-9_-]/g, '_')}.jsonl`)
+      return ipcSuccess({ content })
+    } catch (error) {
+      return ipcFailure(ErrorCodes.IPC_ERROR, error instanceof Error ? error.message : 'Diagnostic indisponible')
+    }
+  })
+
+  async function getCompletedFinalFile(projectId: string, exportId: string): Promise<string> {
+    const item = await getFinalExportRepo(projectId).findById(ExportId.from(exportId))
+    if (!item || item.projetId.value !== projectId || item.statut !== 'termine' || !item.technique) {
+      throw new Error('FINAL_EXPORT_FILE_NOT_AVAILABLE')
+    }
+    const files = new FinalExportFilesystem(getProjectManifestService().getProjectDir(projectId))
+    const filePath = files.absoluteFromRelative(item.technique.cheminFichier)
+    await files.verifyChecksum(filePath, item.technique.checksum)
+    return filePath
+  }
+
+  ipcMain.handle(IPC_CHANNELS.FINAL_EXPORT_OPEN_FILE, async (_event, input: unknown) => {
+    try {
+      const parsed = FinalExportActionSchema.safeParse(input)
+      if (!parsed.success) return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Export final invalide')
+      const filePath = await getCompletedFinalFile(parsed.data.projectId, parsed.data.exportId)
+      const errorMessage = await shell.openPath(filePath)
+      if (errorMessage) throw new Error(errorMessage)
+      return ipcSuccess({ opened: true })
+    } catch (error) {
+      return ipcFailure(ErrorCodes.IPC_ERROR, error instanceof Error ? error.message : 'Ouverture impossible')
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.FINAL_EXPORT_SHOW_IN_FOLDER, async (_event, input: unknown) => {
+    try {
+      const parsed = FinalExportActionSchema.safeParse(input)
+      if (!parsed.success) return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Export final invalide')
+      const filePath = await getCompletedFinalFile(parsed.data.projectId, parsed.data.exportId)
+      shell.showItemInFolder(filePath)
+      return ipcSuccess({ shown: true })
+    } catch (error) {
+      return ipcFailure(ErrorCodes.IPC_ERROR, error instanceof Error ? error.message : 'Dossier indisponible')
+    }
+  })
+
   let phase9QuitInProgress = false
   app.on('before-quit', (event) => {
     if (phase9QuitInProgress) return
@@ -1393,10 +1663,12 @@ export function registerIpcHandlers(): void {
     phase9QuitInProgress = true
     void (async () => {
       try {
+        await finalExportCoordinator?.shutdown()
         await renderCoordinator?.shutdown()
         await renderEngine.dispose()
         mediaWatcher.stopAll()
         await getLockManager().releaseAll()
+        for (const finalExportRepo of finalExportRepos.values()) finalExportRepo.close()
         for (const renderRepo of renderRepos.values()) renderRepo.close()
         for (const sceneRepo of sceneRepos.values()) sceneRepo.close()
         for (const mediaRepo of mediaRepos.values()) mediaRepo.close()
@@ -1404,6 +1676,7 @@ export function registerIpcHandlers(): void {
         for (const subtitleRepo of subtitleRepos.values()) subtitleRepo.close()
         for (const declinaisonRepo of declinaisonRepos.values()) declinaisonRepo.close()
         for (const sourceVersion of sourceVersionAdapters.values()) sourceVersion.close()
+        finalExportRepos.clear()
         renderRepos.clear()
         sceneRepos.clear()
         mediaRepos.clear()
@@ -1412,12 +1685,12 @@ export function registerIpcHandlers(): void {
         declinaisonRepos.clear()
         sourceVersionAdapters.clear()
       } catch (error) {
-        logger.warn({ err: error }, 'Graceful Phase 9 shutdown encountered an error')
+        logger.warn({ err: error }, 'Graceful Phase 10 shutdown encountered an error')
       } finally {
         app.quit()
       }
     })()
   })
 
-  logger.info('IPC handlers registered (Phase 1 through Phase 9 Remotion rendering)')
+  logger.info('IPC handlers registered (Phase 1 through Phase 10 final MP4 export)')
 }

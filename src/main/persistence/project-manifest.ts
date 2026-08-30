@@ -83,7 +83,8 @@ export class ProjectManifestService {
       join(projectDir, 'renders', 'failed'),
       join(projectDir, 'logs'),
       join(projectDir, 'backups'),
-      join(projectDir, 'temp', 'rendering')
+      join(projectDir, 'temp', 'rendering'),
+      join(projectDir, 'temp', 'exporting')
     ]
     for (const directory of requiredDirs) {
       if (!existsSync(directory)) mkdirSync(directory, { recursive: true })

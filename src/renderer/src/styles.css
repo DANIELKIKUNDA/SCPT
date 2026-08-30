@@ -1785,3 +1785,234 @@ h1 {
     grid-template-columns: 1fr;
   }
 }
+
+/* Phase 10 — final verified MP4 export */
+.final-export-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.final-export-header,
+.final-export-card-head,
+.final-export-actions,
+.final-export-tech p {
+  display: flex;
+  align-items: center;
+}
+
+.final-export-header {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.final-export-header h3 {
+  margin: 0;
+  color: #dce7f7;
+  font-size: 0.82rem;
+}
+
+.final-export-header p,
+.final-export-card-head span,
+.final-export-empty,
+.final-export-create label > span {
+  color: #7d8ca3;
+  font-size: 0.66rem;
+}
+
+.final-export-header p {
+  margin: 2px 0 0;
+}
+
+.final-export-error {
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid rgba(238, 91, 103, 0.42);
+  border-radius: 7px;
+  color: #f0aaaf;
+  background: rgba(238, 91, 103, 0.08);
+  font-size: 0.68rem;
+}
+
+.final-export-create {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid #28354b;
+  border-radius: 10px;
+  background: #101827;
+}
+
+.final-export-create label {
+  display: grid;
+  flex: 1;
+  gap: 5px;
+  min-width: 0;
+}
+
+.final-export-create select,
+.media-rights-control select {
+  border: 1px solid #31415b;
+  background: #0b1220;
+  color: #dce7f7;
+}
+
+.final-export-create select {
+  width: 100%;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: 7px;
+}
+
+.final-export-empty {
+  margin: 0;
+  padding: 10px;
+  border: 1px dashed #2a3850;
+  border-radius: 9px;
+  text-align: center;
+}
+
+.final-export-list {
+  display: grid;
+  gap: 8px;
+  overflow: auto;
+}
+
+.final-export-card {
+  display: grid;
+  gap: 7px;
+  padding: 9px 10px;
+  border: 1px solid #28354b;
+  border-radius: 10px;
+  background: #0e1624;
+}
+
+.final-export-card.status-termine { border-color: rgba(75, 201, 143, 0.35); }
+.final-export-card.status-echoue { border-color: rgba(238, 91, 103, 0.42); }
+.final-export-card.status-annule { border-color: rgba(240, 170, 80, 0.34); }
+
+.final-export-card-head {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.final-export-card-head > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.final-export-card-head strong {
+  color: #e5efff;
+  font-size: 0.75rem;
+}
+
+.final-export-progress-value {
+  color: #a9c4f8 !important;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  opacity: 1 !important;
+}
+
+.final-export-progress {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #172236;
+}
+
+.final-export-progress > div {
+  height: 100%;
+  max-width: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #4f7be7, #67b2ff);
+  transition: width 180ms linear;
+}
+
+.final-export-card.status-termine .final-export-progress > div {
+  background: linear-gradient(90deg, #3fa776, #70d6a8);
+}
+
+.final-export-tech {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #243148;
+  border-radius: 8px;
+  background: #101827;
+}
+
+.final-export-tech p {
+  gap: 6px;
+  margin: 0;
+  color: #75d1aa;
+  font-size: 0.7rem;
+}
+
+.final-export-tech-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px 10px;
+  color: #9fb2ce;
+  font-size: 0.65rem;
+}
+
+.final-export-tech code {
+  overflow: hidden;
+  color: #71849f;
+  font-size: 0.61rem;
+  text-overflow: ellipsis;
+}
+
+.final-export-diagnostic {
+  margin: 0;
+  padding: 7px 8px;
+  border-radius: 7px;
+  color: #f0aaaf;
+  background: rgba(238, 91, 103, 0.08);
+  font-size: 0.66rem;
+}
+
+.final-export-actions {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.final-export-log {
+  max-height: 150px;
+  overflow: auto;
+  margin: 0;
+  padding: 7px 8px;
+  border: 1px solid #243148;
+  border-radius: 7px;
+  background: #080d16;
+  color: #9fb2ce;
+  font-size: 0.62rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.media-rights-control {
+  display: grid;
+  gap: 3px;
+  min-width: 96px;
+  color: #7d8ca3;
+  font-size: 0.62rem;
+}
+
+.media-rights-control select {
+  min-height: 28px;
+  max-width: 128px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 0.66rem;
+}
+
+@media (max-width: 900px) {
+  .final-export-create { align-items: stretch; flex-direction: column; }
+  .final-export-tech-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

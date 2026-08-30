@@ -77,4 +77,23 @@ describe('RessourceMedia (domain)', () => {
     expect(media.mimeType).toBe('audio/wav')
     expect(media.dureeMs).toBe(3000)
   })
+
+  it('updates media rights as a semantic versioned change', () => {
+    const media = RessourceMedia.create({
+      projetId, type: 'image', cheminRelatif: 'm/f.png', nomOriginal: 'f.png', checksum: 'a', tailleOctets: 0, mimeType: 'image/png'
+    })
+    const authorized = media.withDroits('autorisee')
+    expect(authorized.droits).toBe('autorisee')
+    expect(authorized.version.value).toBe(2)
+    expect(media.droits).toBe('inconnue')
+  })
+
+  it('keeps the same media instance when rights do not change', () => {
+    const media = RessourceMedia.create({
+      projetId, type: 'image', cheminRelatif: 'm/f.png', nomOriginal: 'f.png', checksum: 'a', tailleOctets: 0,
+      mimeType: 'image/png', droits: 'libre'
+    })
+    expect(media.withDroits('libre')).toBe(media)
+  })
+
 })
