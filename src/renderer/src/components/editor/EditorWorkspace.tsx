@@ -13,6 +13,7 @@ import { SubtitlePanel } from '../subtitles/SubtitlePanel'
 import { DeclinationPanel } from '../declinaisons/DeclinationPanel'
 import { RenderingPanel } from '../rendering/RenderingPanel'
 import { FinalExportPanel } from '../final-export/FinalExportPanel'
+import { ReliabilityPanel } from '../reliability/ReliabilityPanel'
 
 interface EditorWorkspaceProps {
   project: ProjectDto
@@ -29,7 +30,7 @@ export function EditorWorkspace({ project, reduceMotion, onClose, onSave }: Edit
   const [declinaisons, setDeclinaisons] = useState<DeclinaisonDto[]>([])
   const [selectedDeclinaisonId, setSelectedDeclinaisonId] = useState<string | null>(null)
   const [sourceRevision, setSourceRevision] = useState(0)
-  const [bottomTab, setBottomTab] = useState<'media' | 'narration' | 'subtitles' | 'declinaisons' | 'rendering' | 'final-export'>('narration')
+  const [bottomTab, setBottomTab] = useState<'media' | 'narration' | 'subtitles' | 'declinaisons' | 'rendering' | 'final-export' | 'reliability'>('narration')
   const isDirty = useEditorStore((state) => state.isDirty)
   const error = useEditorStore((state) => state.error)
   const undo = useEditorStore((state) => state.undo)
@@ -186,6 +187,12 @@ export function EditorWorkspace({ project, reduceMotion, onClose, onSave }: Edit
               role="tab"
               aria-selected={bottomTab === 'final-export'}
             >Export final</button>
+            <button
+              className={bottomTab === 'reliability' ? 'active' : ''}
+              onClick={() => setBottomTab('reliability')}
+              role="tab"
+              aria-selected={bottomTab === 'reliability'}
+            >Fiabilité</button>
           </div>
           <div className="editor-bottom-content">
             {bottomTab === 'narration' ? (
@@ -214,6 +221,8 @@ export function EditorWorkspace({ project, reduceMotion, onClose, onSave }: Edit
               <RenderingPanel project={project} declinaisons={declinaisons} />
             ) : bottomTab === 'final-export' ? (
               <FinalExportPanel project={project} declinaisons={declinaisons} />
+            ) : bottomTab === 'reliability' ? (
+              <ReliabilityPanel project={project} onRestored={onClose} />
             ) : (
               <MediaLibrary medias={medias} loading={mediaLoading} onRefresh={loadMedias} />
             )}

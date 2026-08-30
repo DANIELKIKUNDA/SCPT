@@ -2016,3 +2016,236 @@ h1 {
   .final-export-create { align-items: stretch; flex-direction: column; }
   .final-export-tech-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Phase 11 — reliability, recovery and task history */
+.reliability-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.reliability-header,
+.reliability-actions,
+.reliability-summary,
+.reliability-card h4,
+.reliability-warning,
+.reliability-backup-row,
+.reliability-check {
+  display: flex;
+  align-items: center;
+}
+
+.reliability-header {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reliability-header h3 {
+  margin: 0;
+  color: #dce7f7;
+  font-size: 0.82rem;
+}
+
+.reliability-header p {
+  margin: 2px 0 0;
+  color: #7d8ca3;
+  font-size: 0.66rem;
+}
+
+.reliability-error,
+.reliability-message,
+.reliability-warning {
+  padding: 7px 9px;
+  border-radius: 7px;
+  font-size: 0.68rem;
+}
+
+.reliability-error {
+  border: 1px solid rgba(238, 91, 103, 0.42);
+  color: #f0aaaf;
+  background: rgba(238, 91, 103, 0.08);
+}
+
+.reliability-message {
+  border: 1px solid rgba(75, 201, 143, 0.34);
+  color: #8eddbb;
+  background: rgba(75, 201, 143, 0.08);
+}
+
+.reliability-warning {
+  gap: 7px;
+  border: 1px solid rgba(240, 170, 80, 0.34);
+  color: #e8bd82;
+  background: rgba(240, 170, 80, 0.08);
+}
+
+.reliability-actions {
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.reliability-summary {
+  gap: 9px;
+  padding: 9px 10px;
+  border: 1px solid #2b3b55;
+  border-radius: 10px;
+  background: #0f1828;
+}
+
+.reliability-summary.status-healthy { border-color: rgba(75, 201, 143, 0.36); }
+.reliability-summary.status-attention { border-color: rgba(240, 170, 80, 0.36); }
+.reliability-summary.status-blocked { border-color: rgba(238, 91, 103, 0.44); }
+
+.reliability-summary > div {
+  display: grid;
+  gap: 2px;
+}
+
+.reliability-summary strong {
+  color: #e6effd;
+  font-size: 0.75rem;
+}
+
+.reliability-summary span,
+.reliability-empty,
+.reliability-check span,
+.reliability-anomaly span,
+.reliability-backup-row span {
+  color: #7d8ca3;
+  font-size: 0.64rem;
+}
+
+.reliability-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.reliability-card {
+  display: grid;
+  gap: 7px;
+  padding: 9px 10px;
+  border: 1px solid #28354b;
+  border-radius: 10px;
+  background: #0e1624;
+  min-width: 0;
+}
+
+.reliability-card h4 {
+  gap: 6px;
+  margin: 0;
+  color: #dbe7f8;
+  font-size: 0.72rem;
+}
+
+.reliability-checklist,
+.reliability-anomalies,
+.reliability-backup-list,
+.reliability-task-table {
+  display: grid;
+  gap: 5px;
+}
+
+.reliability-check {
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 7px;
+  border-radius: 7px;
+  background: #101827;
+}
+
+.reliability-check > div {
+  display: grid;
+  gap: 1px;
+}
+
+.reliability-check strong {
+  color: #dce7f7;
+  font-size: 0.67rem;
+}
+
+.reliability-check.status-ok svg { color: #70d6a8; }
+.reliability-check.status-warning svg { color: #e8bd82; }
+.reliability-check.status-blocked svg { color: #ef9ba1; }
+
+.reliability-anomaly {
+  display: grid;
+  gap: 2px;
+  padding: 6px 7px;
+  border-left: 3px solid #41526e;
+  border-radius: 6px;
+  background: #101827;
+}
+
+.reliability-anomaly.severity-info { border-left-color: #6a8fe6; }
+.reliability-anomaly.severity-warning { border-left-color: #d89a4c; }
+.reliability-anomaly.severity-blocking { border-left-color: #e45d68; }
+
+.reliability-anomaly strong {
+  color: #dce7f7;
+  font-size: 0.66rem;
+}
+
+.reliability-empty {
+  margin: 0;
+  padding: 8px;
+  text-align: center;
+  border: 1px dashed #2a3850;
+  border-radius: 7px;
+}
+
+.reliability-backup-row {
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 8px;
+  border: 1px solid #243148;
+  border-radius: 7px;
+  background: #101827;
+}
+
+.reliability-backup-row > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.reliability-backup-row strong {
+  color: #dce7f7;
+  font-size: 0.67rem;
+}
+
+.reliability-task-table {
+  overflow: auto;
+}
+
+.reliability-task-head,
+.reliability-task-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.35fr) minmax(90px, 1fr) 72px 86px 86px;
+  gap: 8px;
+  align-items: center;
+  min-width: 540px;
+}
+
+.reliability-task-head {
+  padding: 0 7px 4px;
+  color: #64758e;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.reliability-task-row {
+  padding: 6px 7px;
+  border-radius: 6px;
+  background: #101827;
+  color: #aebdd2;
+  font-size: 0.64rem;
+}
+
+@media (max-width: 1000px) {
+  .reliability-grid { grid-template-columns: 1fr; }
+  .reliability-backup-row { align-items: flex-start; flex-direction: column; }
+}

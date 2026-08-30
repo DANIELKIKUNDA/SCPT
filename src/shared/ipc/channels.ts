@@ -51,7 +51,12 @@ export const IPC_CHANNELS = {
   FINAL_EXPORT_RETRY: 'final-export:retry',
   FINAL_EXPORT_READ_LOG: 'final-export:read-log',
   FINAL_EXPORT_OPEN_FILE: 'final-export:open-file',
-  FINAL_EXPORT_SHOW_IN_FOLDER: 'final-export:show-in-folder'
+  FINAL_EXPORT_SHOW_IN_FOLDER: 'final-export:show-in-folder',
+  RELIABILITY_OVERVIEW: 'reliability:overview',
+  RELIABILITY_RUN_AUDIT: 'reliability:run-audit',
+  RELIABILITY_CREATE_BACKUP: 'reliability:create-backup',
+  RELIABILITY_RESTORE_BACKUP: 'reliability:restore-backup',
+  RELIABILITY_CLEAN_TEMP: 'reliability:clean-temp'
 } as const
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]

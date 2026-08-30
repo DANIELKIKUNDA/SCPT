@@ -91,6 +91,7 @@ import { FFprobeInspectionAdapter } from '../../contexts/projects/infrastructure
 import { resolveFfmpegExecutable, resolveFfprobeExecutable } from '../../contexts/projects/infrastructure/final-export/ffmpeg-binary-resolver'
 import { FinalExportFilesystem } from '../../contexts/projects/infrastructure/final-export/final-export-filesystem'
 import { FinalExportCoordinator } from '../final-export/final-export-coordinator'
+import { ProjectReliabilityManager } from '../reliability/reliability-manager'
 
 let repo: ReturnType<typeof createSqliteProjectRepository> | null = null
 
@@ -135,6 +136,9 @@ const SceneUpdateInputSchema = z.object({
 })
 
 export function registerIpcHandlers(): void {
+  const manifestService = getProjectManifestService()
+  const reliabilityManager = new ProjectReliabilityManager(manifestService, () => app.getVersion())
+  const openProjectIds = new Set<string>()
   let _createProject: CreateProjectUseCase
   let _openProject: OpenProjectUseCase
   let _listRecent: ListRecentUseCase
@@ -216,6 +220,18 @@ export function registerIpcHandlers(): void {
     logger.info('projects:create received')
     try {
       const projet = await _createProject.execute(input)
+      try {
+        await reliabilityManager.initializeNewProject({
+          id: projet.id.value,
+          titre: projet.titre,
+          type: projet.type,
+          createdAt: projet.createdAt.toISOString(),
+          updatedAt: projet.updatedAt.toISOString()
+        })
+      } catch (physicalError) {
+        await getProjectRepo().delete(projet.id)
+        throw physicalError
+      }
       return ipcSuccess({
         id: projet.id.value,
         titre: projet.titre,
@@ -238,9 +254,17 @@ export function registerIpcHandlers(): void {
       }
       ensureRepo()
       const projet = await _openProject.execute(projectId)
+      await reliabilityManager.prepareOpen({
+        id: projet.id.value,
+        titre: projet.titre,
+        type: projet.type,
+        createdAt: projet.createdAt.toISOString(),
+        updatedAt: projet.updatedAt.toISOString()
+      })
+      openProjectIds.add(projectId)
 
       // Start media watcher for this project
-      const projectDir = join(app.getPath('userData'), 'projects', projectId)
+      const projectDir = manifestService.getProjectDir(projectId)
       mediaWatcher.startWatching(projectId, projectDir)
 
       // Verify all media files on project open
@@ -297,12 +321,19 @@ export function registerIpcHandlers(): void {
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
+      if (typeof projectId === 'string') {
+        try { await getLockManager().releaseLock(projectId) } catch { /* best effort after failed open */ }
+        openProjectIds.delete(projectId)
+      }
       if (err instanceof ProjectLockedError) {
         logger.warn({ projectId }, 'Project locked')
         return ipcFailure(ErrorCodes.IPC_ERROR, message)
       }
       logger.error({ err, projectId }, 'projects:open failed')
-      return ipcFailure(ErrorCodes.IPC_ERROR, message)
+      const controlled = message === 'PROJECT_FORMAT_NEWER_THAN_APP'
+        ? 'Ce projet a été créé avec une version plus récente de SCPT et ne peut pas être ouvert ici.'
+        : message
+      return ipcFailure(ErrorCodes.IPC_ERROR, controlled)
     }
   })
 
@@ -312,30 +343,11 @@ export function registerIpcHandlers(): void {
       if (typeof projectId !== 'string') {
         return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Invalid project ID')
       }
-      if (finalExportCoordinator) await finalExportCoordinator.pauseProject(projectId)
-      if (renderCoordinator) await renderCoordinator.pauseProject(projectId)
-      await getLockManager().releaseLock(projectId)
-      mediaWatcher.stopWatching(projectId)
-      sceneRepos.get(projectId)?.close()
-      sceneRepos.delete(projectId)
-      mediaRepos.get(projectId)?.close()
-      mediaRepos.delete(projectId)
-      narrationControllers.get(projectId)?.abort()
-      narrationControllers.delete(projectId)
-      narrationRepos.get(projectId)?.close()
-      narrationRepos.delete(projectId)
-      subtitleRepos.get(projectId)?.close()
-      subtitleRepos.delete(projectId)
-      declinaisonRepos.get(projectId)?.close()
-      declinaisonRepos.delete(projectId)
-      sourceVersionAdapters.get(projectId)?.close()
-      sourceVersionAdapters.delete(projectId)
-      renderRepos.get(projectId)?.close()
-      renderRepos.delete(projectId)
-      finalExportRepos.get(projectId)?.close()
-      finalExportRepos.delete(projectId)
-      renderRecoveryPerformed.delete(projectId)
-      finalExportRecoveryPerformed.delete(projectId)
+      await quiesceProjectRuntime(projectId, {
+        cleanCloseSnapshot: true,
+        releaseLock: true,
+        removeFromOpenSet: true
+      })
       return ipcSuccess({ released: true })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
@@ -1656,15 +1668,156 @@ export function registerIpcHandlers(): void {
     }
   })
 
-  let phase9QuitInProgress = false
+
+  async function quiesceProjectRuntime(projectId: string, options: {
+    cleanCloseSnapshot: boolean
+    releaseLock: boolean
+    removeFromOpenSet: boolean
+  }): Promise<void> {
+    if (finalExportCoordinator) await finalExportCoordinator.pauseProject(projectId)
+    if (renderCoordinator) await renderCoordinator.pauseProject(projectId)
+    narrationControllers.get(projectId)?.abort()
+    narrationControllers.delete(projectId)
+    mediaWatcher.stopWatching(projectId)
+
+    if (options.cleanCloseSnapshot && manifestService.exists(projectId)) {
+      try {
+        await reliabilityManager.snapshotOnCleanClose(projectId)
+      } catch (error) {
+        logger.warn({ err: error, projectId }, 'Phase 11 close snapshot failed (non-destructive)')
+      }
+    }
+
+    sceneRepos.get(projectId)?.close()
+    sceneRepos.delete(projectId)
+    mediaRepos.get(projectId)?.close()
+    mediaRepos.delete(projectId)
+    narrationRepos.get(projectId)?.close()
+    narrationRepos.delete(projectId)
+    subtitleRepos.get(projectId)?.close()
+    subtitleRepos.delete(projectId)
+    declinaisonRepos.get(projectId)?.close()
+    declinaisonRepos.delete(projectId)
+    sourceVersionAdapters.get(projectId)?.close()
+    sourceVersionAdapters.delete(projectId)
+    renderRepos.get(projectId)?.close()
+    renderRepos.delete(projectId)
+    finalExportRepos.get(projectId)?.close()
+    finalExportRepos.delete(projectId)
+    renderRecoveryPerformed.delete(projectId)
+    finalExportRecoveryPerformed.delete(projectId)
+
+    if (options.releaseLock) await getLockManager().releaseLock(projectId)
+    if (options.removeFromOpenSet) openProjectIds.delete(projectId)
+  }
+
+  const ReliabilityProjectSchema = z.string().min(1)
+  const ReliabilityRestoreSchema = z.object({
+    projectId: z.string().min(1),
+    backupId: z.string().min(1)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.RELIABILITY_OVERVIEW, async (_event, projectId: unknown) => {
+    try {
+      const parsed = ReliabilityProjectSchema.safeParse(projectId)
+      if (!parsed.success) return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Projet invalide')
+      return ipcSuccess(await reliabilityManager.getOverview(parsed.data))
+    } catch (error) {
+      logger.error({ err: error, projectId }, 'reliability:overview failed')
+      return ipcFailure(ErrorCodes.IPC_ERROR, error instanceof Error ? error.message : 'Diagnostic indisponible')
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.RELIABILITY_RUN_AUDIT, async (_event, projectId: unknown) => {
+    try {
+      const parsed = ReliabilityProjectSchema.safeParse(projectId)
+      if (!parsed.success) return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Projet invalide')
+      return ipcSuccess(await reliabilityManager.getOverview(parsed.data))
+    } catch (error) {
+      logger.error({ err: error, projectId }, 'reliability:run-audit failed')
+      return ipcFailure(ErrorCodes.IPC_ERROR, error instanceof Error ? error.message : 'Audit impossible')
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.RELIABILITY_CREATE_BACKUP, async (_event, projectId: unknown) => {
+    try {
+      const parsed = ReliabilityProjectSchema.safeParse(projectId)
+      if (!parsed.success) return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Projet invalide')
+      return ipcSuccess(await reliabilityManager.createManualSnapshot(parsed.data))
+    } catch (error) {
+      logger.error({ err: error, projectId }, 'reliability:create-backup failed')
+      return ipcFailure(ErrorCodes.IPC_ERROR, error instanceof Error ? error.message : 'Sauvegarde impossible')
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.RELIABILITY_CLEAN_TEMP, async (_event, projectId: unknown) => {
+    try {
+      const parsed = ReliabilityProjectSchema.safeParse(projectId)
+      if (!parsed.success) return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Projet invalide')
+      // Narration generation uses audio/temp but is intentionally not part of
+      // the render/export task board. Never let a manual cleanup delete the
+      // active Piper work-in-progress.
+      if (narrationControllers.has(parsed.data)) {
+        return ipcFailure(ErrorCodes.IPC_ERROR, 'Nettoyage indisponible pendant une génération de narration')
+      }
+      return ipcSuccess(await reliabilityManager.cleanupTemporaryFiles(parsed.data))
+    } catch (error) {
+      logger.error({ err: error, projectId }, 'reliability:clean-temp failed')
+      return ipcFailure(ErrorCodes.IPC_ERROR, error instanceof Error ? error.message : 'Nettoyage impossible')
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.RELIABILITY_RESTORE_BACKUP, async (_event, input: unknown) => {
+    const parsed = ReliabilityRestoreSchema.safeParse(input)
+    if (!parsed.success) return ipcFailure(ErrorCodes.VALIDATION_ERROR, 'Point de récupération invalide')
+    const { projectId, backupId } = parsed.data
+    try {
+      await quiesceProjectRuntime(projectId, {
+        cleanCloseSnapshot: false,
+        releaseLock: false,
+        // Remove immediately so the periodic snapshot timer cannot race the
+        // database/filesystem swap performed by restoration.
+        removeFromOpenSet: true
+      })
+      const result = await reliabilityManager.restoreBackup(projectId, backupId)
+      await getLockManager().releaseLock(projectId)
+      openProjectIds.delete(projectId)
+      return ipcSuccess(result)
+    } catch (error) {
+      try { await getLockManager().releaseLock(projectId) } catch { /* best effort */ }
+      openProjectIds.delete(projectId)
+      logger.error({ err: error, projectId, backupId }, 'reliability:restore-backup failed')
+      const message = error instanceof Error ? error.message : 'Restauration impossible'
+      return ipcFailure(ErrorCodes.IPC_ERROR, message)
+    }
+  })
+
+  const reliabilityTimer = setInterval(() => {
+    for (const projectId of openProjectIds) {
+      void reliabilityManager.maybeCreateAutomaticSnapshot(projectId).catch((error) => {
+        logger.warn({ err: error, projectId }, 'Automatic Phase 11 snapshot failed')
+      })
+    }
+  }, 60_000)
+  reliabilityTimer.unref()
+
+  let phase11QuitInProgress = false
   app.on('before-quit', (event) => {
-    if (phase9QuitInProgress) return
+    if (phase11QuitInProgress) return
     event.preventDefault()
-    phase9QuitInProgress = true
+    phase11QuitInProgress = true
     void (async () => {
       try {
+        clearInterval(reliabilityTimer)
         await finalExportCoordinator?.shutdown()
         await renderCoordinator?.shutdown()
+        for (const projectId of [...openProjectIds]) {
+          try {
+            await reliabilityManager.snapshotOnCleanClose(projectId)
+          } catch (snapshotError) {
+            logger.warn({ err: snapshotError, projectId }, 'Phase 11 shutdown snapshot failed')
+          }
+        }
         await renderEngine.dispose()
         mediaWatcher.stopAll()
         await getLockManager().releaseAll()
@@ -1685,12 +1838,12 @@ export function registerIpcHandlers(): void {
         declinaisonRepos.clear()
         sourceVersionAdapters.clear()
       } catch (error) {
-        logger.warn({ err: error }, 'Graceful Phase 10 shutdown encountered an error')
+        logger.warn({ err: error }, 'Graceful Phase 11 shutdown encountered an error')
       } finally {
         app.quit()
       }
     })()
   })
 
-  logger.info('IPC handlers registered (Phase 1 through Phase 10 final MP4 export)')
+  logger.info('IPC handlers registered (Phase 1 through Phase 11 reliability and recovery)')
 }

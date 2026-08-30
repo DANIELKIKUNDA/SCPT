@@ -132,6 +132,33 @@ vi.mock('../persistence/media-watcher', () => ({
   verifyMediaFiles: (): string[] => []
 }))
 
+vi.mock('../reliability/reliability-manager', () => ({
+  ProjectReliabilityManager: class {
+    async initializeNewProject(): Promise<void> {}
+    async prepareOpen(): Promise<unknown> {
+      return {
+        audit: { id: 'a', projectId: 'p', status: 'healthy', anomalies: [], checklist: [], createdAt: new Date().toISOString() },
+        backups: [], tasks: [], recentAudits: [], crashRecovered: false,
+        versions: { formatVersion: 2, databaseSchemaVersion: 1, appVersion: '0.0.0' }
+      }
+    }
+    async getOverview(): Promise<unknown> {
+      return {
+        audit: { id: 'a', projectId: 'p', status: 'healthy', anomalies: [], checklist: [], createdAt: new Date().toISOString() },
+        backups: [], tasks: [], recentAudits: [], crashRecovered: false,
+        versions: { formatVersion: 2, databaseSchemaVersion: 1, appVersion: '0.0.0' }
+      }
+    }
+    async createManualSnapshot(): Promise<unknown> {
+      return { id: 'b', kind: 'manual', createdAt: new Date().toISOString(), appVersion: '0.0.0', projectFormatVersion: 2, databaseSchemaVersion: 1, fileCount: 1, totalBytes: 1, sourceFingerprint: 'x' }
+    }
+    async cleanupTemporaryFiles(): Promise<unknown> { return { removedEntries: 0, removedBytes: 0, skippedActive: 0 } }
+    async restoreBackup(): Promise<unknown> { return { restored: true, backupId: 'b', safetyBackupId: 's', requiresReopen: true } }
+    async maybeCreateAutomaticSnapshot(): Promise<null> { return null }
+    async snapshotOnCleanClose(): Promise<null> { return null }
+  }
+}))
+
 vi.mock('../../contexts/projects/infrastructure/persistence/drizzle-media-repository', () => ({
   createDrizzleMediaRepository: () => ({
     findAll: async (): Promise<unknown[]> => [],

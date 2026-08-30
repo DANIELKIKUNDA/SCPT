@@ -55,7 +55,12 @@ const electronAPI: ElectronAPI = {
   finalExportRetry: (input) => ipcRenderer.invoke(IPC_CHANNELS.FINAL_EXPORT_RETRY, input),
   finalExportReadLog: (input) => ipcRenderer.invoke(IPC_CHANNELS.FINAL_EXPORT_READ_LOG, input),
   finalExportOpenFile: (input) => ipcRenderer.invoke(IPC_CHANNELS.FINAL_EXPORT_OPEN_FILE, input),
-  finalExportShowInFolder: (input) => ipcRenderer.invoke(IPC_CHANNELS.FINAL_EXPORT_SHOW_IN_FOLDER, input)
+  finalExportShowInFolder: (input) => ipcRenderer.invoke(IPC_CHANNELS.FINAL_EXPORT_SHOW_IN_FOLDER, input),
+  reliabilityOverview: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.RELIABILITY_OVERVIEW, projectId),
+  reliabilityRunAudit: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.RELIABILITY_RUN_AUDIT, projectId),
+  reliabilityCreateBackup: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.RELIABILITY_CREATE_BACKUP, projectId),
+  reliabilityRestoreBackup: (input) => ipcRenderer.invoke(IPC_CHANNELS.RELIABILITY_RESTORE_BACKUP, input),
+  reliabilityCleanTemp: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.RELIABILITY_CLEAN_TEMP, projectId)
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

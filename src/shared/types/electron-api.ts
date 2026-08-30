@@ -253,6 +253,75 @@ export interface FinalExportDto {
   logRelativePath: string
 }
 
+
+export type ReliabilityAuditSeverityDto = 'info' | 'warning' | 'blocking'
+export type ReliabilityAuditStatusDto = 'healthy' | 'attention' | 'blocked'
+export type ReliabilityChecklistStatusDto = 'ok' | 'warning' | 'blocked'
+
+export interface ReliabilityAnomalyDto {
+  code: string
+  severity: ReliabilityAuditSeverityDto
+  message: string
+  detail: string | null
+}
+
+export interface ReliabilityChecklistDto {
+  id: string
+  label: string
+  status: ReliabilityChecklistStatusDto
+  detail: string
+}
+
+export interface ReliabilityAuditDto {
+  id: string
+  projectId: string
+  status: ReliabilityAuditStatusDto
+  anomalies: ReliabilityAnomalyDto[]
+  checklist: ReliabilityChecklistDto[]
+  createdAt: string
+}
+
+export interface ReliabilityBackupDto {
+  id: string
+  kind: 'automatic' | 'manual' | 'close' | 'migration' | 'pre_restore'
+  createdAt: string
+  appVersion: string
+  projectFormatVersion: number
+  databaseSchemaVersion: number
+  fileCount: number
+  totalBytes: number
+  sourceFingerprint: string
+}
+
+export interface ReliabilityTaskDto {
+  id: string
+  kind: 'render' | 'final_export'
+  projectId: string
+  targetId: string
+  status: string
+  progress: number
+  attempt: number
+  diagnostic: string | null
+  createdAt: string
+  updatedAt: string
+  finishedAt: string | null
+  active: boolean
+  obsolete: boolean
+}
+
+export interface ReliabilityOverviewDto {
+  audit: ReliabilityAuditDto
+  backups: ReliabilityBackupDto[]
+  tasks: ReliabilityTaskDto[]
+  recentAudits: ReliabilityAuditDto[]
+  crashRecovered: boolean
+  versions: {
+    formatVersion: number
+    databaseSchemaVersion: number
+    appVersion: string
+  }
+}
+
 export interface ElectronAPI {
   systemPing: () => Promise<IpcResult<{ message: 'pong'; timestamp: number }>>
   systemGetAppInfo: () => Promise<IpcResult<{
@@ -381,4 +450,18 @@ export interface ElectronAPI {
   finalExportReadLog: (input: { projectId: string; exportId: string }) => Promise<IpcResult<{ content: string }>>
   finalExportOpenFile: (input: { projectId: string; exportId: string }) => Promise<IpcResult<{ opened: boolean }>>
   finalExportShowInFolder: (input: { projectId: string; exportId: string }) => Promise<IpcResult<{ shown: boolean }>>
+  reliabilityOverview: (projectId: string) => Promise<IpcResult<ReliabilityOverviewDto>>
+  reliabilityRunAudit: (projectId: string) => Promise<IpcResult<ReliabilityOverviewDto>>
+  reliabilityCreateBackup: (projectId: string) => Promise<IpcResult<ReliabilityBackupDto>>
+  reliabilityRestoreBackup: (input: { projectId: string; backupId: string }) => Promise<IpcResult<{
+    restored: true
+    backupId: string
+    safetyBackupId: string
+    requiresReopen: true
+  }>>
+  reliabilityCleanTemp: (projectId: string) => Promise<IpcResult<{
+    removedEntries: number
+    removedBytes: number
+    skippedActive: number
+  }>>
 }

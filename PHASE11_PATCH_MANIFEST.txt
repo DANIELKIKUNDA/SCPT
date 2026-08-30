@@ -1,0 +1,54 @@
+SCPT — PHASE 11 PATCH MANIFEST
+
+Baseline: Phase 10 définitivement figée
+Commit baseline communiqué: 6d3d708db4ea2c4ab234b530d158837fe48473d0
+
+Périmètre: Qualité, récupération et historique
+Nouvelle dépendance: aucune
+Phase 12: non implémentée
+
+Fichiers ajoutés (20):
+  + docs/reports/phase11-implementation-report.md
+  + src/contexts/projects/application/ports/reliability-repository.port.ts
+  + src/contexts/projects/infrastructure/persistence/__tests__/drizzle-reliability-repository.test.ts
+  + src/contexts/projects/infrastructure/persistence/drizzle-reliability-repository.ts
+  + src/main/reliability/__tests__/project-audit.test.ts
+  + src/main/reliability/__tests__/project-backup.test.ts
+  + src/main/reliability/__tests__/project-manifest-phase11.test.ts
+  + src/main/reliability/__tests__/recovery-session.test.ts
+  + src/main/reliability/__tests__/reliability-manager.test.ts
+  + src/main/reliability/__tests__/task-board.test.ts
+  + src/main/reliability/__tests__/temp-cleaner.test.ts
+  + src/main/reliability/project-audit.ts
+  + src/main/reliability/project-backup.ts
+  + src/main/reliability/recovery-session.ts
+  + src/main/reliability/reliability-manager.ts
+  + src/main/reliability/task-board.ts
+  + src/main/reliability/temp-cleaner.ts
+  + src/renderer/src/components/reliability/ReliabilityPanel.tsx
+  + src/renderer/src/components/reliability/__tests__/ReliabilityPanel.test.tsx
+  + PHASE11_PATCH_MANIFEST.txt
+
+Fichiers modifiés (8):
+  * src/main/ipc/handlers.test.ts
+  * src/main/ipc/handlers.ts
+  * src/main/persistence/project-manifest.ts
+  * src/preload/index.ts
+  * src/renderer/src/components/editor/EditorWorkspace.tsx
+  * src/renderer/src/styles.css
+  * src/shared/ipc/channels.ts
+  * src/shared/types/electron-api.ts
+
+Fichiers supprimés (0):
+  (aucun)
+
+Cible Windows:
+  - 68/68 fichiers de tests PASS
+  - 379/379 tests PASS minimum
+  - typecheck PASS
+  - lint PASS 0 warning
+  - build PASS
+  - Electron réel PASS
+  - 0 unhandled error
+
+Ne pas figer Phase 11 avant certification fonctionnelle Windows réelle.
