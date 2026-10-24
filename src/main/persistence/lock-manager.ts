@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { join } from 'path'
-import { existsSync, mkdirSync } from 'fs'
+import { closeSync, existsSync, mkdirSync, openSync } from 'fs'
 import { logger } from '../logging/logger'
 
 /**
@@ -28,13 +28,21 @@ export class LockManager {
   async acquireLock(projectId: string): Promise<void> {
     const lockPath = join(this.locksDir, `${projectId}.lock`)
 
+    // proper-lockfile resolves the target with realpath() by default. On
+    // Windows that fails with ENOENT when the advisory target does not exist
+    // yet, so create it atomically before asking proper-lockfile to lock it.
+    if (!existsSync(lockPath)) {
+      closeSync(openSync(lockPath, 'a'))
+    }
+
     // Dynamic import to avoid bundling proper-lockfile in tests
     const lockfile = await import('proper-lockfile')
 
     try {
       const release = await lockfile.lock(lockPath, {
         stale: 30000, // Consider lock stale after 30s if process dies
-        retries: 0 // Fail immediately if locked
+        retries: 0, // Fail immediately if locked
+        realpath: false
       })
       this.activeLocks.set(projectId, release)
       logger.info({ projectId, lockPath }, 'Lock acquired')

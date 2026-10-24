@@ -231,7 +231,11 @@ export function SubtitlePanel({
   }
 
   return (
-    <section className="subtitle-panel" aria-label="Sous-titres">
+    <section className="subtitle-panel studio-tool-panel" aria-label="Sous-titres">
+      <div className="tool-stage-banner">
+        <div><span className="tool-stage-kicker">02 · LISIBILITÉ</span><strong>Sous-titres éditoriaux</strong><small>Synchronisez, relisez et positionnez les sous-titres sans masquer l’information essentielle.</small></div>
+        <div className="tool-stage-metrics"><span><b>{track?.segments.length ?? 0}</b> segments</span><span><b>{track ? statusLabel(track.statut) : 'Non créé'}</b> statut</span><span className={showInPreview ? 'is-ready' : ''}><b>{showInPreview ? '✓' : '—'}</b> aperçu</span></div>
+      </div>
       <div className="subtitle-toolbar">
         <div className="subtitle-heading">
           <Captions size={17} />

@@ -58,3 +58,6 @@ src/
 ## Licence
 
 Propriétaire — SCPT
+## Phase 12
+
+Le spike Playwright temporaire a été remplacé par `scripts/phase12-electron-e2e.cjs` et la commande reproductible `pnpm test:e2e:electron`. Voir `docs/reports/phase12-electron-e2e-implementation.md`.

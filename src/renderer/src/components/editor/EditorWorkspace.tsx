@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { ChevronLeft, Save, Undo2 } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { ChevronLeft, Save, Undo2, Mic2, Captions, Images, PanelsTopLeft, Clapperboard, PackageCheck, ShieldCheck } from 'lucide-react'
 import type { DeclinaisonDto, MediaDto, ProjectDto, SubtitleTrackDto } from '../../../../shared/types/electron-api'
 import { unwrapIpc } from '../../lib/ipc'
 import { useEditorStore } from '../../stores/editor-store'
@@ -30,6 +30,7 @@ export function EditorWorkspace({ project, reduceMotion, onClose, onSave }: Edit
   const [declinaisons, setDeclinaisons] = useState<DeclinaisonDto[]>([])
   const [selectedDeclinaisonId, setSelectedDeclinaisonId] = useState<string | null>(null)
   const [sourceRevision, setSourceRevision] = useState(0)
+  const tabListRef = useRef<HTMLDivElement>(null)
   const [bottomTab, setBottomTab] = useState<'media' | 'narration' | 'subtitles' | 'declinaisons' | 'rendering' | 'final-export' | 'reliability'>('narration')
   const isDirty = useEditorStore((state) => state.isDirty)
   const error = useEditorStore((state) => state.error)
@@ -76,6 +77,23 @@ export function EditorWorkspace({ project, reduceMotion, onClose, onSave }: Edit
   }, [project.id, setError])
 
   useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      const modifier = event.ctrlKey || event.metaKey
+      if (!modifier) return
+      if (event.key.toLowerCase() === 's') {
+        event.preventDefault()
+        void onSave()
+      }
+      if (event.key.toLowerCase() === 'z' && !event.shiftKey) {
+        event.preventDefault()
+        undo()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onSave, undo])
+
+  useEffect(() => {
     void loadMedias()
     void loadSubtitles()
     void loadDeclinaisons()
@@ -99,6 +117,17 @@ export function EditorWorkspace({ project, reduceMotion, onClose, onSave }: Edit
   }, [])
 
   const selectedDeclinaison = declinaisons.find((item) => item.id === selectedDeclinaisonId && !item.obsolete) ?? null
+
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+    const buttons = Array.from(tabListRef.current?.querySelectorAll<HTMLButtonElement>('button[role="tab"]') ?? [])
+    if (buttons.length === 0) return
+    const currentIndex = Math.max(0, buttons.indexOf(document.activeElement as HTMLButtonElement))
+    const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : event.key === 'ArrowRight' ? (currentIndex + 1) % buttons.length : (currentIndex - 1 + buttons.length) % buttons.length
+    event.preventDefault()
+    buttons[nextIndex]?.focus()
+    buttons[nextIndex]?.click()
+  }
 
   useEffect(() => {
     if (bottomTab !== 'declinaisons') return
@@ -132,12 +161,12 @@ export function EditorWorkspace({ project, reduceMotion, onClose, onSave }: Edit
           <button
             className="icon-btn labeled"
             onClick={() => void onSave()}
-            title="Sauvegarder maintenant"
+            title="Sauvegarder maintenant (Ctrl+S)"
             disabled={!isDirty}
           >
             <Save size={15} /> Sauvegarder
           </button>
-          <button className="icon-btn labeled" onClick={undo} title="Annuler la dernière modification">
+          <button className="icon-btn labeled" onClick={undo} title="Annuler la dernière modification (Ctrl+Z)">
             <Undo2 size={15} /> Annuler
           </button>
         </div>
@@ -150,51 +179,51 @@ export function EditorWorkspace({ project, reduceMotion, onClose, onSave }: Edit
         <section className="editor-center"><PreviewPanel medias={medias} reduceMotion={reduceMotion} subtitles={subtitleTrack} showSubtitles={showSubtitles} declination={selectedDeclinaison} /></section>
         <aside className="editor-right"><SceneProperties /></aside>
         <section className="editor-bottom">
-          <div className="editor-bottom-tabs" role="tablist" aria-label="Outils du projet">
+          <div ref={tabListRef} className="editor-bottom-tabs" role="tablist" aria-label="Chaîne de production du projet" onKeyDown={handleTabKeyDown}>
             <button
               className={bottomTab === 'narration' ? 'active' : ''}
               onClick={() => setBottomTab('narration')}
               role="tab"
-              aria-selected={bottomTab === 'narration'}
-            >Narration</button>
+              aria-selected={bottomTab === 'narration'} id="tab-narration" aria-controls="panel-narration" tabIndex={bottomTab === 'narration' ? 0 : -1}
+            ><Mic2 size={14} /> Narration</button>
             <button
               className={bottomTab === 'subtitles' ? 'active' : ''}
               onClick={() => setBottomTab('subtitles')}
               role="tab"
-              aria-selected={bottomTab === 'subtitles'}
-            >Sous-titres</button>
+              aria-selected={bottomTab === 'subtitles'} id="tab-subtitles" aria-controls="panel-subtitles" tabIndex={bottomTab === 'subtitles' ? 0 : -1}
+            ><Captions size={14} /> Sous-titres</button>
             <button
               className={bottomTab === 'media' ? 'active' : ''}
               onClick={() => setBottomTab('media')}
               role="tab"
-              aria-selected={bottomTab === 'media'}
-            >Médias</button>
+              aria-selected={bottomTab === 'media'} id="tab-media" aria-controls="panel-media" tabIndex={bottomTab === 'media' ? 0 : -1}
+            ><Images size={14} /> Médias</button>
             <button
               className={bottomTab === 'declinaisons' ? 'active' : ''}
               onClick={() => setBottomTab('declinaisons')}
               role="tab"
-              aria-selected={bottomTab === 'declinaisons'}
-            >Formats</button>
+              aria-selected={bottomTab === 'declinaisons'} id="tab-declinaisons" aria-controls="panel-declinaisons" tabIndex={bottomTab === 'declinaisons' ? 0 : -1}
+            ><PanelsTopLeft size={14} /> Formats</button>
             <button
               className={bottomTab === 'rendering' ? 'active' : ''}
               onClick={() => setBottomTab('rendering')}
               role="tab"
-              aria-selected={bottomTab === 'rendering'}
-            >Rendus</button>
+              aria-selected={bottomTab === 'rendering'} id="tab-rendering" aria-controls="panel-rendering" tabIndex={bottomTab === 'rendering' ? 0 : -1}
+            ><Clapperboard size={14} /> Rendus</button>
             <button
               className={bottomTab === 'final-export' ? 'active' : ''}
               onClick={() => setBottomTab('final-export')}
               role="tab"
-              aria-selected={bottomTab === 'final-export'}
-            >Export final</button>
+              aria-selected={bottomTab === 'final-export'} id="tab-final-export" aria-controls="panel-final-export" tabIndex={bottomTab === 'final-export' ? 0 : -1}
+            ><PackageCheck size={14} /> Export final</button>
             <button
               className={bottomTab === 'reliability' ? 'active' : ''}
               onClick={() => setBottomTab('reliability')}
               role="tab"
-              aria-selected={bottomTab === 'reliability'}
-            >Fiabilité</button>
+              aria-selected={bottomTab === 'reliability'} id="tab-reliability" aria-controls="panel-reliability" tabIndex={bottomTab === 'reliability' ? 0 : -1}
+            ><ShieldCheck size={14} /> Fiabilité</button>
           </div>
-          <div className="editor-bottom-content">
+          <div className="editor-bottom-content" id={`panel-${bottomTab}`} role="tabpanel" aria-labelledby={`tab-${bottomTab}`}>
             {bottomTab === 'narration' ? (
               <NarrationPanel project={project} scenes={scenes} onTrackChange={handleNarrationTrackChange} />
             ) : bottomTab === 'subtitles' ? (

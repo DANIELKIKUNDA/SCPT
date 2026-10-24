@@ -124,7 +124,11 @@ export function NarrationPanel({ project, scenes, onTrackChange }: NarrationPane
   }
 
   return (
-    <section className="narration-panel" aria-label="Narration locale">
+    <section className="narration-panel studio-tool-panel" aria-label="Narration locale">
+      <div className="tool-stage-banner">
+        <div><span className="tool-stage-kicker">01 · VOIX & RYTHME</span><strong>Donnez une voix au projet</strong><small>Préparez le texte, comparez les prises et figez uniquement la meilleure version.</small></div>
+        <div className="tool-stage-metrics"><span><b>{scenes.length}</b> scènes</span><span><b>{track?.prises.length ?? 0}</b> prises</span><span className={track?.priseFinaleId ? 'is-ready' : ''}><b>{track?.priseFinaleId ? '✓' : '—'}</b> voix finale</span></div>
+      </div>
       <div className="narration-authoring">
         <div className="narration-title-row">
           <div>

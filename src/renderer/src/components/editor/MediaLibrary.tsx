@@ -1,4 +1,4 @@
-import { AlertTriangle, Image as ImageIcon, Link2, RefreshCw, Upload } from 'lucide-react'
+import { AlertTriangle, FileImage, Image as ImageIcon, Link2, RefreshCw, ShieldCheck, Upload } from 'lucide-react'
 import type { MediaDto } from '../../../../shared/types/electron-api'
 import { unwrapIpc } from '../../lib/ipc'
 import { useEditorStore } from '../../stores/editor-store'
@@ -73,8 +73,21 @@ export function MediaLibrary({ medias, loading, onRefresh }: MediaLibraryProps):
 
   return (
     <section className="media-library-panel" aria-label="Bibliothèque média">
+      <div className="tool-stage-banner media-stage-banner">
+        <div className="tool-stage-copy">
+          <span className="tool-stage-kicker">BIBLIOTHÈQUE DU PROJET</span>
+          <strong>Préparez les visuels avant la mise en scène.</strong>
+          <small>Importez vos ressources, vérifiez leurs droits puis associez-les à la scène image sélectionnée.</small>
+        </div>
+        <div className="tool-stage-metrics" aria-label="État des médias">
+          <span><b>{medias.length}</b> ressources</span>
+          <span className={medias.some((media) => media.statut === 'manquante') ? 'is-warning' : 'is-ready'}><b>{medias.filter((media) => media.statut === 'manquante').length}</b> manquantes</span>
+          <span className={medias.some((media) => media.droits === 'inconnue' || media.droits === 'interdite') ? 'is-warning' : 'is-ready'}><b>{medias.filter((media) => media.droits === 'inconnue' || media.droits === 'interdite').length}</b> droits à revoir</span>
+        </div>
+      </div>
+
       <div className="media-library-header">
-        <span>Médias ({medias.length})</span>
+        <span>Ressources ({medias.length})</span>
         <div className="media-header-actions">
           <button className="icon-btn" title="Actualiser" onClick={() => void onRefresh()}>
             <RefreshCw size={14} />
@@ -85,9 +98,20 @@ export function MediaLibrary({ medias, loading, onRefresh }: MediaLibraryProps):
         </div>
       </div>
 
-      <div className="media-list">
-        {loading && <p className="media-status">Chargement...</p>}
-        {!loading && medias.length === 0 && <p className="media-status">Aucun média importé</p>}
+      <div className="media-list" aria-live="polite">
+        {loading && (
+          <div className="tool-loading-state" role="status">
+            <span className="tool-spinner" aria-hidden="true" />
+            <div><strong>Ouverture de la bibliothèque…</strong><small>SCPT vérifie les ressources du projet.</small></div>
+          </div>
+        )}
+        {!loading && medias.length === 0 && (
+          <div className="tool-empty-state">
+            <span className="tool-empty-icon"><FileImage size={24} /></span>
+            <div><strong>Aucun média dans ce projet</strong><small>Importez une image ou un logo pour commencer à enrichir vos scènes.</small></div>
+            <button className="btn btn-primary" onClick={() => void handleImport()}><Upload size={14} /> Importer un média</button>
+          </div>
+        )}
         {medias.map((media) => {
           const canAssociate = selectedSceneType === 'image' && ['image', 'logo'].includes(media.type)
           return (
@@ -102,9 +126,12 @@ export function MediaLibrary({ medias, loading, onRefresh }: MediaLibraryProps):
             <div className="media-info">
               <span className="media-name" title={media.nomOriginal}>{media.nomOriginal}</span>
               <span className="media-type">{media.type} · {media.mimeType}</span>
-              {media.statut === 'manquante' && (
-                <span className="media-missing-badge"><AlertTriangle size={12} /> Manquant</span>
-              )}
+              <div className="media-badges">
+                {media.statut === 'manquante' && (
+                  <span className="media-missing-badge"><AlertTriangle size={12} /> Manquant</span>
+                )}
+                <span className={`media-rights-badge rights-${media.droits}`}><ShieldCheck size={11} /> {media.droits}</span>
+              </div>
             </div>
             <div className="media-card-actions">
               <label className="media-rights-control" title="Droits requis pour l’export final">

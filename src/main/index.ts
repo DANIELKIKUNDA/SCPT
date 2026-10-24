@@ -7,10 +7,18 @@ import { registerMediaProtocol, registerMediaScheme } from './protocols/media-pr
 
 registerMediaScheme()
 
+const WINDOWS_APP_USER_MODEL_ID = 'com.scpt.app'
+
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 1280,
+    height: 820,
+    minWidth: 1024,
+    minHeight: 700,
+    title: 'SCPT — Studio de Création Pédagogique et Technique',
+    icon: app.isPackaged
+      ? join(process.resourcesPath, 'branding', 'scpt-icon.png')
+      : join(__dirname, '../../build/icon.png'),
     show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -42,6 +50,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === 'win32') app.setAppUserModelId(WINDOWS_APP_USER_MODEL_ID)
   logger.info('Electron app ready')
   configureCSP(!app.isPackaged)
   registerMediaProtocol()

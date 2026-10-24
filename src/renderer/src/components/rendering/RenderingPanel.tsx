@@ -117,7 +117,11 @@ export function RenderingPanel({ project, declinaisons }: RenderingPanelProps): 
   }
 
   return (
-    <section className="rendering-panel" aria-label="Rendus Remotion">
+    <section className="rendering-panel studio-tool-panel" aria-label="Rendus Remotion">
+      <div className="tool-stage-banner">
+        <div><span className="tool-stage-kicker">05 · PRODUCTION</span><strong>File de rendu locale</strong><small>Transformez uniquement les déclinaisons validées en rendus intermédiaires vérifiables et relançables.</small></div>
+        <div className="tool-stage-metrics"><span><b>{readyDeclinaisons.length}</b> prêtes</span><span><b>{jobs.filter((job) => job.statut === 'termine').length}</b> terminées</span><span className={!hasActiveJob ? 'is-ready' : ''}><b>{hasActiveJob ? '●' : '✓'}</b> {hasActiveJob ? 'en cours' : 'disponible'}</span></div>
+      </div>
       <div className="rendering-heading">
         <div>
           <h3><Film size={16} /> Rendu intermédiaire Remotion</h3>

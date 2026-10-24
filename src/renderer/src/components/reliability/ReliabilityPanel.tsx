@@ -132,7 +132,11 @@ export function ReliabilityPanel({ project, onRestored }: ReliabilityPanelProps)
   }
 
   return (
-    <section className="reliability-panel" aria-label="Fiabilité et récupération">
+    <section className="reliability-panel studio-tool-panel" aria-label="Fiabilité et récupération">
+      <div className="tool-stage-banner">
+        <div><span className="tool-stage-kicker">07 · SÉCURITÉ DU STUDIO</span><strong>Fiabilité & récupération</strong><small>Contrôlez l’intégrité du projet, créez des points de récupération et gardez les incidents traçables.</small></div>
+        <div className="tool-stage-metrics"><span><b>{overview?.backups.length ?? 0}</b> sauvegardes</span><span><b>{activeTasks.length}</b> tâches actives</span><span className={overview?.audit.status === 'healthy' ? 'is-ready' : ''}><b>{overview?.audit.status === 'healthy' ? '✓' : '—'}</b> santé</span></div>
+      </div>
       <div className="reliability-header">
         <div>
           <h3>Fiabilité & récupération</h3>

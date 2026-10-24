@@ -139,7 +139,11 @@ export function FinalExportPanel({ project, declinaisons }: FinalExportPanelProp
   }
 
   return (
-    <section className="final-export-panel" aria-label="Export final MP4">
+    <section className="final-export-panel studio-tool-panel" aria-label="Export final MP4">
+      <div className="tool-stage-banner">
+        <div><span className="tool-stage-kicker">06 · LIVRAISON</span><strong>Master MP4 prêt à publier</strong><small>Encodez, contrôlez et conservez chaque export final avec ses preuves techniques et son empreinte SHA-256.</small></div>
+        <div className="tool-stage-metrics"><span><b>{renders.length}</b> rendus</span><span><b>{exports.filter((item) => item.statut === 'termine').length}</b> masters</span><span className={!hasActive ? 'is-ready' : ''}><b>{hasActive ? '●' : '✓'}</b> {hasActive ? 'encodage' : 'disponible'}</span></div>
+      </div>
       <div className="final-export-header">
         <div>
           <h3>Export final MP4</h3>

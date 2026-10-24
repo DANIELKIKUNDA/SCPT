@@ -203,7 +203,11 @@ export function DeclinationPanel({
   }
 
   return (
-    <section className="declination-panel" aria-label="Déclinaisons multi-format">
+    <section className="declination-panel studio-tool-panel" aria-label="Déclinaisons multi-format">
+      <div className="tool-stage-banner">
+        <div><span className="tool-stage-kicker">04 · ADAPTATION</span><strong>Un projet, plusieurs compositions</strong><small>Chaque format possède sa propre mise en page. Les adaptations restent liées à la source et traçables.</small></div>
+        <div className="tool-stage-metrics"><span><b>{declinaisons.filter((item) => !item.obsolete).length}</b> actives</span><span><b>{declinaisons.filter((item) => item.pretPourRendu && !item.obsolete).length}</b> prêtes</span><span className={!sourceDirty ? 'is-ready' : ''}><b>{sourceDirty ? '!' : '✓'}</b> source</span></div>
+      </div>
       <div className="declination-heading">
         <div>
           <h3><Layers3 size={17} /> Déclinaisons visuelles</h3>

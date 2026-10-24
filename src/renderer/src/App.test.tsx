@@ -2,28 +2,29 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import App from './App'
 
-describe('App', () => {
-  it('affiche le titre SCPT', () => {
+describe('App — Phase 12 premium shell', () => {
+  it('affiche l’identité SCPT', () => {
     render(<App />)
     expect(screen.getByText('SCPT')).toBeDefined()
+    expect(screen.getByText('Studio de Création Pédagogique et Technique')).toBeDefined()
   })
 
-  it('affiche le sous-titre', () => {
+  it('présente la proposition de valeur du studio', () => {
     render(<App />)
-    expect(screen.getByText('Application de bureau locale')).toBeDefined()
+    expect(screen.getByText(/Transformez vos idées en/)).toBeDefined()
+    expect(screen.getByText(/Studio audiovisuel local-first/)).toBeDefined()
   })
 
-  it('affiche les labels de statut Phase 1', () => {
+  it('expose les actions principales', () => {
     render(<App />)
-    expect(screen.getByText('React')).toBeDefined()
-    expect(screen.getByText('Electron')).toBeDefined()
-    expect(screen.getByText('IPC Ping')).toBeDefined()
-    const prefElements = screen.getAllByText('Preferences')
-    expect(prefElements.length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Nouveau projet').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('Reprendre un projet')).toBeDefined()
   })
 
-  it('affiche la section Preferences', () => {
+  it('affiche les préférences de confort', () => {
     render(<App />)
-    expect(screen.getByText('Theme')).toBeDefined()
+    expect(screen.getByText('Préférences')).toBeDefined()
+    expect(screen.getByText('Apparence')).toBeDefined()
+    expect(screen.getByText('Réduire les animations')).toBeDefined()
   })
 })

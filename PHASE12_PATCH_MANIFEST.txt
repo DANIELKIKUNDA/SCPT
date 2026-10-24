@@ -1,0 +1,81 @@
+SCPT — PHASE 12 PATCH MANIFEST
+
+Baseline: Phase 11 définitivement figée
+Commit baseline: aabf367957cf5c39c195fbc5b503ecf707a72291
+
+Périmètre: UX/UI premium, identité SCPT, RC.1, E2E Electron et distribution Windows
+Version candidate: 1.0.0-rc.1
+Phase 13: non implémentée
+
+Fichiers ajoutés (20):
+  + .npmrc
+  + build/icon.ico
+  + build/icon.png
+  + docs/reports/phase12-electron-e2e-implementation.md
+  + docs/reports/phase12-packaging-findings.md
+  + docs/reports/phase12-premium-ui-tranche-02.md
+  + docs/reports/phase12-premium-ui-tranche-03.md
+  + docs/reports/phase12-premium-ui-tranche-04.md
+  + docs/reports/phase12-rc1-certification-attempt.md
+  + docs/reports/phase12-scpt-identity-tranche-07.md
+  + docs/reports/phase12-ux-ui-premium-audit.md
+  + docs/reports/phase12-version-rc1-tranche-08.md
+  + docs/reports/phase12-windows-preparation-tranche-06.md
+  + resources/branding/scpt-icon.png
+  + scripts/phase12-electron-e2e.cjs
+  + scripts/playwright-electron-spike.cjs
+  + scripts/run-phase12-e2e.mjs
+  + scripts/verify-windows-package.mjs
+  + src/renderer/public/scpt-icon.png
+  + PHASE12_PATCH_MANIFEST.txt
+
+Fichiers modifiés (17):
+  * README.md
+  * package.json
+  * pnpm-lock.yaml
+  * src/main/index.ts
+  * src/main/persistence/lock-manager.ts
+  * src/renderer/src/App.test.tsx
+  * src/renderer/src/App.tsx
+  * src/renderer/src/components/declinaisons/DeclinationPanel.tsx
+  * src/renderer/src/components/editor/EditorWorkspace.tsx
+  * src/renderer/src/components/editor/MediaLibrary.tsx
+  * src/renderer/src/components/final-export/FinalExportPanel.tsx
+  * src/renderer/src/components/narration/NarrationPanel.tsx
+  * src/renderer/src/components/reliability/ReliabilityPanel.tsx
+  * src/renderer/src/components/rendering/RenderingPanel.tsx
+  * src/renderer/src/components/subtitles/SubtitlePanel.tsx
+  * src/renderer/src/styles.css
+  * vitest.config.ts
+
+Fichiers supprimés (0):
+  (aucun)
+
+Certification Windows réelle du 2026-10-24:
+  - env:check PASS
+  - typecheck PASS
+  - lint PASS
+  - 68/68 fichiers de tests PASS
+  - 379/379 tests PASS
+  - build Electron PASS
+  - E2E développement 12/12 PASS
+  - configuration Windows 17/17 PASS
+  - packaging NSIS x64 PASS
+  - artefacts Windows 21/21 PASS
+  - E2E application emballée 12/12 PASS
+  - installation réelle PASS (code 0)
+  - E2E copie installée 12/12 PASS
+  - désinstallation réelle PASS (code 0)
+  - 0 erreur fatale renderer/page/main
+
+Artefact certifié:
+  - dist/SCPT Setup 1.0.0-rc.1.exe
+  - SHA-256: 403031F5CEB65F06B943D1CD15CB3B31F6DF12A3F3FFC7C13D25C90BBE0EB2F2
+  - signature de code absente (facultative pour le MVP interne)
+
+Journaux temporaires explicitement exclus du checkpoint:
+  - eb-out.txt
+  - pkg-out.txt
+  - spike-out.txt
+
+Phase 12 certifiée techniquement et prête à être figée par ce checkpoint.
