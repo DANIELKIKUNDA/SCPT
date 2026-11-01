@@ -3,6 +3,21 @@ export interface DiagramPoint {
   value: number
 }
 
+export type DiagramKind = 'bar' | 'line'
+
+export interface DiagramSpec {
+  kind: DiagramKind
+  points: DiagramPoint[]
+}
+
+export function parseDiagramSpec(text: string | null): DiagramSpec {
+  const lines = text?.split(/\r?\n/) ?? []
+  const directive = lines.find((line) => line.trim().length > 0)?.trim().toLowerCase()
+  const kind: DiagramKind = directive === '@line' ? 'line' : 'bar'
+  const source = kind === 'line' ? lines.filter((line) => line.trim().toLowerCase() !== '@line').join('\n') : text
+  return { kind, points: parseDiagramData(source) }
+}
+
 export function parseDiagramData(text: string | null): DiagramPoint[] {
   if (!text) return []
   return text

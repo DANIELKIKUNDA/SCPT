@@ -2,11 +2,10 @@ import { Composition } from 'remotion'
 import { ProjectComposition } from './compositions/ProjectComposition'
 import type { ProjectCompositionProps } from './types/preview-types'
 import {
-  PREVIEW_FPS,
-  buildTimeline
+  PREVIEW_FPS
 } from './utils/timeline'
-import { subtitleDurationInFrames } from './utils/subtitles'
 import { DEFAULT_PREVIEW_DECLINATION } from './utils/declination-layout'
+import { calculateProjectMetadata } from './utils/project-metadata'
 
 const defaultProps: ProjectCompositionProps = {
   scenes: [],
@@ -28,15 +27,7 @@ export function RemotionRoot(): JSX.Element {
         width={1920}
         height={1080}
         defaultProps={defaultProps}
-        calculateMetadata={({ props }) => ({
-          durationInFrames: Math.max(
-            1,
-            buildTimeline(props.scenes).totalFrames,
-            subtitleDurationInFrames(props.subtitles ?? [], PREVIEW_FPS)
-          ),
-          width: props.declination?.resolution.width ?? 1920,
-          height: props.declination?.resolution.height ?? 1080
-        })}
+        calculateMetadata={({ props }) => calculateProjectMetadata(props)}
       />
     </>
   )

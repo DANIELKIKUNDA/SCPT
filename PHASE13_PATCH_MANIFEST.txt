@@ -1,0 +1,82 @@
+SCPT PHASE 13 — MANIFESTE DU PROTOTYPE DE VALIDATION RÉEL
+Date du manifeste : 2026-11-01
+Baseline figée : b33e6591e1a6b5b084b52c2f4f02453fdc355291
+Branche : main
+Version inchangée : 1.0.0-rc.1
+Statut : CERTIFIABLE — validation humaine de la narration reçue le 2026-11-01
+
+FICHIERS PRODUIT MODIFIÉS
+- src/remotion/Root.tsx
+  Propagation explicite des props calculées vers Remotion 4.0.0.
+- src/remotion/utils/project-metadata.ts
+  Calcul testable des métadonnées et propagation des props Remotion.
+- src/remotion/scenes/DiagramScene.tsx
+  Rendu d'une courbe lorsque le diagramme utilise la directive @line.
+- src/remotion/scenes/diagram-data.ts
+  Parsing rétrocompatible d'un diagramme en barres ou en courbe.
+
+TEST AJOUTÉ
+- src/remotion/scenes/diagram-data.test.ts
+  3 tests : format historique, courbe logarithmique, rejet des points invalides.
+- src/remotion/Root.test.ts
+  1 test de non-régression : propagation des scènes vers le rendu offline Remotion.
+
+HARNAIS ET PREUVES AJOUTÉS
+- scripts/phase13-prototype-e2e.cjs
+- scripts/run-phase13-prototype.mjs
+- scripts/phase13-finalize-e2e.cjs
+- scripts/run-phase13-finalize.mjs
+- scripts/phase13-remotion-smoke.cjs
+- scripts/phase13-rerender-e2e.cjs
+- scripts/run-phase13-rerender.mjs
+
+RAPPORT AJOUTÉ
+- docs/reports/phase13-prototype-validation.md
+
+ARTEFACTS LOCAUX PRODUITS (dist/ ignoré par Git)
+- dist/phase13/profile/
+- dist/phase13/phase13-evidence.json
+- dist/phase13/phase13-fixed-primary.json
+- dist/phase13/phase13-preview.png
+- dist/phase13/frames/
+- dist/phase13/exports/phase13-logarithmes-16x9.mp4
+- dist/phase13/exports/phase13-logarithmes-9x16.mp4
+- dist/phase13/exports/phase13-logarithmes-16x9-reproduction.mp4
+
+EXPORTS CORRIGÉS DE RÉFÉRENCE
+- 16:9 : 1920x1080, 62.334 s, H.264/yuv420p, AAC 48 kHz,
+  3 094 261 octets,
+  SHA-256 0da30827fc473633969c8056b461e8def0ce11f1f4d41dc839882434f0e3289d
+- 9:16 : 1080x1920, 62.334 s, H.264/yuv420p, AAC 48 kHz,
+  3 104 781 octets,
+  SHA-256 a856204053608e67fb56093fb8e37d2939772c370c71bc1c70f0715525b65858
+- reproduction 16:9 : 1920x1080, 62.334 s, H.264/yuv420p, AAC 48 kHz,
+  3 094 627 octets,
+  SHA-256 bb82496714ea1ed4104aea1d4e164edaef0ff09f5fe8b9f65111c1b71835b45a
+
+REPRODUCTIBILITÉ
+- durée et résolution identiques
+- audio décodé strictement identique
+- 1870 images dans chaque export
+- PSNR 71.593874 dB
+- SSIM 0.999986
+
+VALIDATIONS
+- typecheck : PASS
+- lint : PASS
+- tests : PASS — 70 fichiers, 383/383
+- E2E Electron : PASS — 12/12
+- build : PASS
+- inspection visuelle 16:9 et 9:16 : PASS
+- audio technique : PASS — moyenne -16.1 dB, crête -1.0 dB, aucun silence anormal >= 2 s
+- intelligibilité de la narration : PASS — validation humaine du propriétaire
+
+FICHIERS VOLONTAIREMENT EXCLUS
+- eb-out.txt
+- pkg-out.txt
+- spike-out.txt
+- artefacts dist/ et vidéos MP4, conformément à la politique Git existante
+
+DISCIPLINE GIT
+- Le commit de certification Phase 13 peut être créé après la dernière suite complète et le dernier build verts.
+- Aucun remote GitHub n'est configuré au moment de ce manifeste.
